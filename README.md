@@ -27,7 +27,7 @@ Mindspace/
 cd backend
 docker compose up -d
 
-# Frontend DB (PostgreSQL 16 on port 5432)
+# Frontend DB (PostgreSQL 16 on port 5434)
 cd ../frontend
 docker compose -f docker-compose.dev.yml up -d
 ```
