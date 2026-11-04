@@ -1,5 +1,5 @@
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { getServerSession } from "@/modules/server/auth/get-session";
+import { getServerSession, getDevSession } from "@/modules/server/auth/get-session";
 import LayoutBreadCrumb from "@/modules/client/shared/components/LayoutBreadCrumb";
 import AppNavbar from "@/modules/client/shared/components/navbar/AppNavbar";
 import { redirect } from "@/i18n/navigation";
@@ -9,19 +9,29 @@ import { MenuBar } from "@/modules/client/shared/components/menubar/MenuBar";
 export const dynamic = "force-dynamic";
 
 const AppsLayout = async ({ children }: { children: React.ReactNode }) => {
-  const session = await getServerSession();
+  let session = await getServerSession();
   const locale = await getLocale();
 
   if (!session) {
-    redirect({ href: "/login", locale });
-    return;
+    if (process.env.NODE_ENV !== "production") {
+      session = getDevSession("doctor");
+    } else {
+      redirect({ href: "/login", locale });
+      return;
+    }
   }
+
+  const role =
+    (session.user as any)?.role ||
+    session.session?.activeRole ||
+    "patient";
 
   const user = {
     name: session.user.name,
     email: session.user.email,
     image: session.user.image,
     username: session.user.username,
+    role: role,
     activeOrganizationId: session.session.activeOrganizationId,
   };
 

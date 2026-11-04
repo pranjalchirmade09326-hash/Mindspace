@@ -85,7 +85,7 @@ export function ConsultTabsPanel() {
 
         <TabsContent value="AI Assistant" className="flex-1 min-h-0 mt-2">
           <p className="text-sm text-muted-foreground">
-            Ask DrGodly AI about this consultation — differential diagnosis,
+            Ask MindSpace AI about this consultation — differential diagnosis,
             guideline lookups, or patient education handouts.
           </p>
         </TabsContent>
@@ -125,7 +125,7 @@ export function ConsultTabsPanel() {
         <Input
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Ask DrGodly or type a message…"
+          placeholder="Ask MindSpace or type a message…"
           className="h-9 text-sm"
         />
         <Button type="submit" size="icon" className="size-9 shrink-0">

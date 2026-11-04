@@ -24,7 +24,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "@/i18n/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -215,6 +215,10 @@ export function PatientProfileForm({
       }
 
       toast.success(isCreateMode ? "Profile created." : "Profile updated.");
+      if (isCreateMode) {
+        router.push("/bezs/telemedicine/patient/intake/start");
+        return;
+      }
       router.refresh();
     } finally {
       setIsSaving(false);

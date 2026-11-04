@@ -14,7 +14,7 @@
 
 import { redirect } from "@/i18n/navigation";
 import { getLocale } from "next-intl/server";
-import { getServerSession } from "@/modules/server/auth/get-session";
+import { getServerSession, getDevSession } from "@/modules/server/auth/get-session";
 import { requirePractitionerProfile } from "@/modules/server/auth/require-profile";
 import EMRChatContainer from "@/modules/client/emr-chat/components/EMRChatContainer";
 
@@ -25,12 +25,16 @@ import EMRChatContainer from "@/modules/client/emr-chat/components/EMRChatContai
  * persistence and history sidebar, scoped to the doctor portal base path.
  */
 export default async function DoctorEMRPage() {
-  const session = await getServerSession();
+  let session = await getServerSession();
   const locale = await getLocale();
 
   if (!session) {
-    redirect({ href: "/login", locale });
-    return null;
+    if (process.env.NODE_ENV !== "production") {
+      session = getDevSession("doctor");
+    } else {
+      redirect({ href: "/login", locale });
+      return null;
+    }
   }
 
   // Ensures the doctor has a FHIR Practitioner record; redirects if missing.
@@ -41,13 +45,6 @@ export default async function DoctorEMRPage() {
 
   return (
     <EMRChatContainer
-      // A React key equal to the session identity ("new" here, the real
-      // sessionId on the [sessionId] route) forces a full unmount/remount
-      // whenever that identity changes across a client-side navigation —
-      // without it, Next.js can reuse the already-mounted instance when
-      // navigating back to this bare route from a session, so the mount-once
-      // "restore state" effect never re-fires and a stale workflow/messages
-      // from the previous session keep showing.
       key="new"
       userId={userId}
       orgId={orgId}

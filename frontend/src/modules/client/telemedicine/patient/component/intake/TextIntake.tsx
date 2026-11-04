@@ -4,15 +4,12 @@
  * Layer: client / telemedicine / patient / intake
  *
  * Flow:
- *  1. Patient types freely — no DB record until they end the chat.
+ *  1. After explicit consent, the MindSpace intake record is created.
  *  2. Messages stream from /api/intake-agent token by token.
  *     The AI agent session id is obtained lazily from the first response
  *     (X-Session-Id header or agent_end chunk) and reused for subsequent turns.
- *  3. "End Chat" button (lazy create-and-save):
- *     a. POST conversation to /api/assessment-plan-agent → clinical report.
- *     b. createIntakeAction → creates the DB record.
- *     c. updateIntakeAction(id, conversation, report) → status=COMPLETED.
- *     d. Opens IntakeCompleteModal.
+ *  3. "End Chat" saves encrypted conversation turns to MindSpace and completes
+ *     the intake before showing IntakeCompleteModal.
  *
  * UI mirrors drgodly-mvp TextIntake exactly: Bot-icon header with live
  * Online/Thinking status, ConversationChat thread, Input + Stop/Send + End Chat.
@@ -26,59 +23,40 @@ import { nanoid } from "nanoid";
 import { Bot, Loader2, Send, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  createIntakeAction,
-  updateIntakeAction,
-} from "@/modules/server/presentation/actions/intake";
+import { completeMindspaceIntakeAction } from "@/modules/server/presentation/actions/mindspace-intake.actions";
 import { ConversationChat, type ChatMessage } from "./ConversationChat";
 import { IntakeCompleteModal } from "./IntakeCompleteModal";
 
 /** Props for TextIntake. */
 interface TextIntakeProps {
-  /** FHIR Patient.id — passed to createIntakeAction for doctor cross-reference. */
-  patientFhirId?: number;
-  /** Better Auth active organization id — scopes the intake to the tenant. */
-  orgId?: string | null;
+  /** MindSpace UUID created after the member grants intake consent. */
+  intakeId: string;
   /** Locale-prefixed base path for post-intake navigation. */
   basePath: string;
   /** Patient's display name — shown as avatar initial in the chat thread. */
   userName: string;
-  /**
-   * Precomputed "[Patient context: name=..., age=..., email=..., phone=...]"
-   * string (see buildPatientContextPrefix in shared/helper.ts). Silently
-   * prepended to the first outgoing agent message of a new session only —
-   * lets the agent skip re-asking for demographic details already on file.
-   * Never shown in the chat bubble itself.
-   */
-  patientContext?: string;
 }
 
 /**
  * Text-based patient intake chat.
  *
- * Streams AI responses from /api/intake-agent. Generates a clinical report on
- * completion and persists everything via server actions.
+ * Streams AI responses from /api/intake-agent and persists the transcript in
+ * MindSpace when the member completes the session.
  *
- * @param patientFhirId - Optional FHIR Patient.id for cross-reference.
+ * @param intakeId - MindSpace intake UUID created after consent.
  * @param basePath - Locale-prefixed base path (e.g. "/en/bezs/telemedicine/patient").
  * @param userName - Patient display name, used as avatar initial.
  */
 export function TextIntake({
-  patientFhirId,
-  orgId,
+  intakeId,
   basePath,
   userName,
-  patientContext,
 }: TextIntakeProps) {
-  // DB id — only set after endChat creates the record
-  const [intakeId, setIntakeId] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
-  const [endingPhase, setEndingPhase] = useState<"idle" | "report" | "saving">(
-    "idle",
-  );
+  const [endingPhase, setEndingPhase] = useState<"idle" | "saving">("idle");
   const [showModal, setShowModal] = useState(false);
 
   // AI agent session id — null until the first response sets it
@@ -198,10 +176,7 @@ export function TextIntake({
     // sessionId is null only before the very first response of a brand-new
     // session — that's the one turn we silently prepend the patient context
     // to, so the agent has name/age/contact up front instead of asking.
-    const apiMessage =
-      sessionId === null && patientContext
-        ? `${patientContext}\n\n${text}`
-        : text;
+    const apiMessage = text;
 
     console.log(
       "[TextIntake] outgoing session_id (frontend):",
@@ -327,7 +302,7 @@ export function TextIntake({
   };
   const cancelStream = () => abortRef.current?.abort();
 
-  // ── End chat: generate report → create DB record → save → show modal ────────
+  // ── End chat: save transcript to MindSpace → show modal ───────────────────
   //
   // Reads messagesRef rather than `messages` — this can be triggered
   // automatically from within sendMessage's finally block the instant a
@@ -344,60 +319,17 @@ export function TextIntake({
     }
 
     try {
-      // Step 1: generate clinical report (non-fatal — intake saves even without it)
-      setEndingPhase("report");
-      let report: unknown = undefined;
-      try {
-        const res = await fetch("/api/assessment-plan-agent", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversation: messagesRef.current.map((m) => {
-              const speaker =
-                m.from === "assistant" ? "appointment-intake-agent" : "patient";
-              return `${speaker}: ${m.content}`;
-            }),
-          }),
-        });
-        if (res.ok) report = await res.json();
-      } catch {
-        /* non-fatal */
-      }
-
-      // Step 2: create the DB record + save conversation atomically
       setEndingPhase("saving");
-      const [created, createErr] = await createIntakeAction({
-        payload: {
-          userId: "",
-          mode: "TEXT",
-          patient_fhir_id: patientFhirId,
-          org_id: orgId ?? undefined,
-        },
+      await completeMindspaceIntakeAction({
+        intakeId,
+        messages: messagesRef.current.map((message) => ({
+          role: message.from === "user" ? "user" : "assistant",
+          content: message.content,
+        })),
       });
-      if (createErr || !created) {
-        console.error("[endChat] createIntakeAction failed:", createErr);
-        toast.error("Failed to save intake session");
-        return;
-      }
-
-      const [, updateErr] = await updateIntakeAction({
-        payload: {
-          id: created.id,
-          conversation: messagesRef.current.map((m) => ({
-            role: m.from === "user" ? "user" : "assistant",
-            content: m.content,
-          })),
-          report: report as Record<string, unknown> | undefined,
-        },
-      });
-      if (updateErr) {
-        console.error("[endChat] updateIntakeAction failed:", updateErr);
-        toast.error("Failed to save conversation");
-        return;
-      }
-
-      setIntakeId(created.id);
       setShowModal(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save conversation.");
     } finally {
       setEndingPhase("idle");
     }
@@ -485,12 +417,7 @@ export function TextIntake({
             }
             className="px-4 rounded-2xl h-9"
           >
-            {endingPhase === "report" ? (
-              <>
-                <Loader2 className="animate-spin mr-1 size-3" />
-                Generating...
-              </>
-            ) : endingPhase === "saving" ? (
+            {endingPhase === "saving" ? (
               <>
                 <Loader2 className="animate-spin mr-1 size-3" />
                 Saving...
@@ -503,7 +430,7 @@ export function TextIntake({
       </div>
 
       {/* Post-intake modal */}
-      {showModal && intakeId && (
+      {showModal && (
         <IntakeCompleteModal
           open={showModal}
           intakeId={intakeId}

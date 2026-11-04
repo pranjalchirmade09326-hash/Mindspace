@@ -1,0 +1,19 @@
+services:
+  previsit-agent:
+    image: kipla1412/finalvoiceagent:latest
+    # image: kipla1412/checkagent:latest
+    container_name: drgodly-agents-new
+    ports:
+      - "8018:8000"
+    environment:
+      API_KEY: ${API_KEY:?Set API_KEY in agents/.env}
+      SARVAM_API_KEY: ${SARVAM_API_KEY:?Set SARVAM_API_KEY in agents/.env}
+      IAM_JWKS_URL: "http://host.docker.internal:5001/api/auth/jwks"
+      IAM_ISSUER: "http://localhost:5001"
+      FHIR_BASE_URL: "http://host.docker.internal:8002/mcp/"
+      JINA_BASE_URL: "https://api.jina.ai/v1/embeddings"
+      JINA_API_KEY: ${JINA_API_KEY:?Set JINA_API_KEY in agents/.env}
+      OPENSEARCH_URL: "http://host.docker.internal:9200"
+      MEDICAL_DOCUMENT_INDEX: "clinical_documents"
+      OPENSEARCH_SEARCH_PIPELINE: "hybrid-rrf-pipeline"
+    # restart: unless-stopped

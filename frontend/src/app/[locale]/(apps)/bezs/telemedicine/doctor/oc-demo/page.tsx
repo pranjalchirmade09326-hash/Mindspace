@@ -19,16 +19,20 @@
 
 import { redirect } from "@/i18n/navigation";
 import { getLocale } from "next-intl/server";
-import { getServerSession } from "@/modules/server/auth/get-session";
+import { getServerSession, getDevSession } from "@/modules/server/auth/get-session";
 import { OcDemo } from "@/modules/client/telemedicine/doctor/component/oc-demo/OcDemo";
 
 export default async function OcDemoPage() {
-  const session = await getServerSession();
+  let session = await getServerSession();
   const locale = await getLocale();
 
   if (!session) {
-    redirect({ href: "/login", locale });
-    return null;
+    if (process.env.NODE_ENV !== "production") {
+      session = getDevSession("doctor");
+    } else {
+      redirect({ href: "/login", locale });
+      return null;
+    }
   }
 
   return <OcDemo />;

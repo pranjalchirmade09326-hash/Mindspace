@@ -32,11 +32,8 @@
  *
  *  3. Patient clicks "End Call" (or the agent sends status_end above):
  *     a. Stops mic and WS cleanly.
- *     b. Generates clinical report via POST /api/assessment-plan-agent
- *        (non-fatal — intake saves even without it).
- *     c. createIntakeAction → DB record.
- *     d. updateIntakeAction(id, conversation, report) → status=COMPLETED.
- *     e. Opens IntakeCompleteModal.
+ *     b. Saves encrypted transcript turns to the pre-created MindSpace intake.
+ *     c. Opens IntakeCompleteModal after the save succeeds.
  *
  *  While connected, two extra controls sit next to "End Call":
  *     - Mic toggle: disables the captured MediaStreamTrack (sends silence)
@@ -60,10 +57,7 @@ import { toast } from "sonner";
 import { nanoid } from "nanoid";
 import { Bot, Loader2, Mic, MicOff, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  createIntakeAction,
-  updateIntakeAction,
-} from "@/modules/server/presentation/actions/intake";
+import { completeMindspaceIntakeAction } from "@/modules/server/presentation/actions/mindspace-intake.actions";
 import { ConversationChat, type ChatMessage } from "./ConversationChat";
 import { IntakeCompleteModal } from "./IntakeCompleteModal";
 
@@ -91,22 +85,12 @@ registerProcessor("pcm-capture-processor", PcmCaptureProcessor);
 
 /** Props for VoiceIntakeTest. */
 interface VoiceIntakeTestProps {
-  /** FHIR Patient.id — stored alongside the intake record for doctor lookup. */
-  patientFhirId?: number;
-  /** Better Auth active organization id — scopes the intake to the tenant. */
-  orgId?: string | null;
+  /** MindSpace UUID created after intake and voice transcript consent. */
+  intakeId: string;
   /** Locale-prefixed base path for post-intake navigation. */
   basePath: string;
   /** Patient's display name — shown in the header and as avatar initial. */
   userName: string;
-  /**
-   * Precomputed "[Patient context: name=..., age=..., email=..., phone=...]"
-   * string (see buildPatientContextPrefix in shared/helper.ts). Forwarded to
-   * /api/intake-voice-agent as ?patient_context=..., which appends it onto
-   * the resolved wsUrl — lets the voice agent read the patient's known
-   * demographics at connection time instead of asking for them again.
-   */
-  patientContext?: string;
 }
 
 /** Call lifecycle status — drives Start/End Call button and mic pipeline. */
@@ -200,17 +184,14 @@ function scheduleAudioChunk(
 /**
  * WebSocket-based voice intake component.
  *
- * @param patientFhirId - Optional FHIR Patient.id for cross-referencing.
- * @param orgId         - Optional active organization id.
+ * @param intakeId      - MindSpace intake UUID created after consent.
  * @param basePath      - Locale-prefixed base path.
  * @param userName      - Patient display name used for the avatar initial.
  */
 export function VoiceIntakeTest({
-  patientFhirId,
-  orgId,
+  intakeId,
   basePath,
   userName,
-  patientContext,
 }: VoiceIntakeTestProps) {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [agentPhase, setAgentPhase] = useState<AgentPhase>("idle");
@@ -218,7 +199,6 @@ export function VoiceIntakeTest({
   const [liveTranscript, setLiveTranscript] = useState("");
   const [liveRole, setLiveRole] = useState<"user" | "assistant" | null>(null);
   const [endingPhase, setEndingPhase] = useState<EndingPhase>("idle");
-  const [intakeId, setIntakeId] = useState<number | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
@@ -354,59 +334,17 @@ export function VoiceIntakeTest({
     }
 
     try {
-      // Step 1: generate clinical report (non-fatal — intake saves even without it)
-      setEndingPhase("report");
-      let report: unknown = undefined;
-      try {
-        const res = await fetch("/api/assessment-plan-agent", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversation: finalMessages.map((m) => {
-              const speaker =
-                m.from === "assistant" ? "appointment-intake-agent" : "patient";
-              return `${speaker}: ${m.content}`;
-            }),
-          }),
-        });
-        if (res.ok) report = await res.json();
-      } catch {
-        /* non-fatal — carry on without report */
-      }
-
-      // Step 2: create DB record
       setEndingPhase("saving");
-      const [created, createErr] = await createIntakeAction({
-        payload: {
-          userId: "",
-          mode: "VOICE",
-          patient_fhir_id: patientFhirId,
-          org_id: orgId ?? undefined,
-        },
+      await completeMindspaceIntakeAction({
+        intakeId,
+        messages: finalMessages.map((message) => ({
+          role: message.from === "user" ? "user" : "assistant",
+          content: message.content,
+        })),
       });
-      if (createErr || !created) {
-        toast.error("Failed to save intake session");
-        return;
-      }
-
-      // Step 3: save conversation + report
-      const [, updateErr] = await updateIntakeAction({
-        payload: {
-          id: created.id,
-          conversation: finalMessages.map((m) => ({
-            role: m.from === "user" ? "user" : "assistant",
-            content: m.content,
-          })),
-          report: report as Record<string, unknown> | undefined,
-        },
-      });
-      if (updateErr) {
-        toast.error("Failed to save conversation");
-        return;
-      }
-
-      setIntakeId(created.id);
       setShowModal(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save conversation.");
     } finally {
       setEndingPhase("idle");
     }
@@ -414,8 +352,7 @@ export function VoiceIntakeTest({
     flushPendingUserTranscript,
     flushPendingAssistantText,
     teardown,
-    patientFhirId,
-    orgId,
+    intakeId,
   ]);
 
   // ── Start call ────────────────────────────────────────────────────────────────

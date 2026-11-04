@@ -65,7 +65,7 @@ export default function GlobalError({
               margin: 0,
             }}
           >
-            DrGodly hit an unexpected error and couldn&apos;t load.
+            MindSpace hit an unexpected error and couldn&apos;t load.
             {error.digest && (
               <>
                 <br />

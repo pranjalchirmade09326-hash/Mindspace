@@ -1,16 +1,15 @@
 /**
- * HowItWorks — animated timeline explaining the AI FHIR clinical workflow.
+ * HowItWorks — animated timeline introducing the patient care journey.
  *
  * Layer: client / (marketing) / components
  *
- * Shows the five-step journey from patient intake through FHIR record
- * finalization, emphasizing AI automation and interoperability at each stage.
+ * Shows the three-step path from sign-up through intake to the care workspace.
  */
 
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle2, UserCheck, Database, ClipboardList, Mic, FileText } from "lucide-react";
+import { CheckCircle2, UserCheck, ClipboardList } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 // ── Animation variants ──────────────────────────────────────────────────────
@@ -31,49 +30,33 @@ const steps = [
   {
     number: "01",
     icon: <UserCheck className="w-6 h-6 text-primary" />,
-    title: "Patient Registers & Books",
-    badge: "Patient Portal",
+    title: "Create your space",
+    badge: "A simple start",
     description:
-      "Patients register, complete their FHIR Practitioner-linked profile, and book appointments through the patient portal — all in under two minutes.",
+      "Sign up and tell MindSpace a little about yourself. You can move at your own pace.",
   },
   {
     number: "02",
-    icon: <Mic className="w-6 h-6 text-primary" />,
-    title: "AI Intake Agent",
-    badge: "AI Automation",
+    icon: <ClipboardList className="w-6 h-6 text-primary" />,
+    title: "Share what feels important",
+    badge: "Chat or voice",
     description:
-      "Before the appointment, an AI agent collects symptoms via text or voice. It extracts structured data and creates FHIR Observations and Conditions automatically.",
+      "Choose a guided chat or voice intake to share what is going on in the way that feels right for you.",
   },
   {
     number: "03",
-    icon: <ClipboardList className="w-6 h-6 text-primary" />,
-    title: "Doctor Reviews AI Insights",
-    badge: "Clinical Review",
+    icon: <UserCheck className="w-6 h-6 text-primary" />,
+    title: "Find your next step",
+    badge: "Care workspace",
     description:
-      "The doctor sees a pre-populated dashboard with AI-generated SOAP notes, differential diagnosis, risk assessment, and recommended tests — all before the consult begins.",
-  },
-  {
-    number: "04",
-    icon: <Mic className="w-6 h-6 text-primary" />,
-    title: "Live AI Consultation",
-    badge: "Real-Time",
-    description:
-      "Patient and doctor connect via telemedicine. AI transcribes the conversation, generates clinical notes, and flags any red flags or precautions in real time.",
-  },
-  {
-    number: "05",
-    icon: <Database className="w-6 h-6 text-primary" />,
-    title: "FHIR Records Finalized",
-    badge: "FHIR R4",
-    description:
-      "On consultation completion, a FHIR Encounter resource is created, SOAP notes are stored, the MCP server is updated, and follow-up appointments can be scheduled instantly.",
+      "Continue to your dashboard to explore appointments, care information, and available follow-up options.",
   },
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────
 
 /**
- * Animated alternating-side timeline showing the FHIR clinical AI workflow.
+ * Animated alternating-side timeline showing how patients get started.
  */
 export default function HowItWorks() {
   return (
@@ -90,14 +73,14 @@ export default function HowItWorks() {
       <div className="max-w-[110rem] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <motion.div variants={itemVariants} className="text-center max-w-3xl mx-auto">
           <span className="text-primary font-semibold tracking-wider uppercase text-sm">
-            Workflow
+            Getting started
           </span>
           <h2 className="mt-2 text-3xl sm:text-4xl font-bold text-foreground">
-            AI FHIR Clinical Workflow
+            Three small steps
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            From the first patient interaction to a finalized FHIR record, DrGodly
-            automates and AI-enhances every step of the clinical journey.
+            You can begin with what feels manageable today and return to the rest
+            when you are ready.
           </p>
         </motion.div>
 

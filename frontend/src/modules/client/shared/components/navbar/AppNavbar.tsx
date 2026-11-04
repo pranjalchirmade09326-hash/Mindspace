@@ -15,12 +15,13 @@ import { useRouteConfig } from "@/modules/client/shared/hooks/useRouteConfig";
 type TUser = {
   name: string;
   email: string;
+  role?: string | null;
   image?: string | null;
   username?: string | null;
   activeOrganizationId?: string | null;
 };
 
-const AppNavbar = ({ user, apps }: { user: TUser; apps: unknown[] }) => {
+const AppNavbar = ({ user, apps }: { user: TUser; apps: any[] }) => {
   const [scrolled, setScrolled] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
   const { navbarBreadcrumbs } = useRouteConfig();

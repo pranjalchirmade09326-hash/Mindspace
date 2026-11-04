@@ -1,28 +1,37 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Sans } from "next/font/google";
 import "../globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { notFound } from "next/navigation";
-import { setRequestLocale } from "next-intl/server";
+import { getMessages, setRequestLocale } from "next-intl/server";
 import { routing } from "@/i18n/routing";
 import NextTopLoader from "nextjs-toploader";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/providers/QueryProvider";
 
-const dmSans = DM_Sans({
-  subsets: ["latin"],
-});
+const dmSans = { className: "" };
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:4000"),
   title: {
-    default: "DrGodly",
-    template: "%s | DrGodly",
+    default: "MindSpace",
+    template: "%s | MindSpace",
   },
-  description: "Your personal health companion",
-  applicationName: "DrGodly",
+  description:
+    "A calmer space for mental wellness, guided conversations, and connected care.",
+  applicationName: "MindSpace",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/apple-icon",
+  },
+  openGraph: {
+    title: "MindSpace",
+    description:
+      "A calmer space for mental wellness, guided conversations, and connected care.",
+    siteName: "MindSpace",
+    type: "website",
+  },
 };
 
 export const viewport: Viewport = {
@@ -36,13 +45,16 @@ export default async function RootLayout({
   children: React.ReactNode;
   params: Promise<{ locale: string }>;
 }>) {
-  const { locale } = await params;
+  const resolvedParams = await params;
+  console.log("RootLayout params:", resolvedParams);
+  const locale = resolvedParams?.locale || "en";
 
   if (!hasLocale(routing.locales, locale)) {
     notFound();
   }
 
   setRequestLocale(locale);
+  const messages = await getMessages().catch(() => ({}));
 
   return (
     <html lang={locale} suppressHydrationWarning>
@@ -52,7 +64,7 @@ export default async function RootLayout({
       >
         <ThemeProvider>
           <QueryProvider>
-            <NextIntlClientProvider>
+            <NextIntlClientProvider messages={messages} locale={locale}>
               <TooltipProvider>{children}</TooltipProvider>
             </NextIntlClientProvider>
             <Toaster />

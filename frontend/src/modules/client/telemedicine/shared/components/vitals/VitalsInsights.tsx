@@ -33,7 +33,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, Gauge, HeartPulse, Moon, Scale } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -155,6 +155,10 @@ interface VitalTabPanelProps {
 
 /** One vital's latest reading + its full-size trend chart, for one TabsContent. */
 function VitalTabPanel({ label, unit, trend, strokeVar }: VitalTabPanelProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   const latest = trend.at(-1);
 
   return (
@@ -164,20 +168,22 @@ function VitalTabPanel({ label, unit, trend, strokeVar }: VitalTabPanelProps) {
         <span className="text-sm font-normal text-muted-foreground ml-1.5">{unit}</span>
       </p>
       <div className="h-44">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={trend} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-            <ChartChrome />
-            <Line
-              type="monotone"
-              dataKey="value"
-              name={label}
-              stroke={strokeVar}
-              strokeWidth={2}
-              dot={{ r: 3 }}
-              isAnimationActive={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        {isMounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={trend} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <ChartChrome />
+              <Line
+                type="monotone"
+                dataKey="value"
+                name={label}
+                stroke={strokeVar}
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : null}
       </div>
     </div>
   );
@@ -192,6 +198,11 @@ interface BloodPressurePanelProps {
 
 /** Combines the two BP readings into one two-line chart, keyed by day. */
 function BloodPressurePanel({ systolic, diastolic }: BloodPressurePanelProps) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const merged = systolic.map((s, i) => ({
     day: s.day,
     systolic: s.value,
@@ -207,29 +218,31 @@ function BloodPressurePanel({ systolic, diastolic }: BloodPressurePanelProps) {
         <span className="text-sm font-normal text-muted-foreground ml-1.5">mmHg</span>
       </p>
       <div className="h-44">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={merged} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-            <ChartChrome />
-            <Line
-              type="monotone"
-              dataKey="systolic"
-              name="Systolic"
-              stroke="var(--color-chart-2)"
-              strokeWidth={2}
-              dot={{ r: 3 }}
-              isAnimationActive={false}
-            />
-            <Line
-              type="monotone"
-              dataKey="diastolic"
-              name="Diastolic"
-              stroke="var(--color-chart-3)"
-              strokeWidth={2}
-              dot={{ r: 3 }}
-              isAnimationActive={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        {isMounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={merged} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <ChartChrome />
+              <Line
+                type="monotone"
+                dataKey="systolic"
+                name="Systolic"
+                stroke="var(--color-chart-2)"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                isAnimationActive={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="diastolic"
+                name="Diastolic"
+                stroke="var(--color-chart-3)"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : null}
       </div>
     </div>
   );

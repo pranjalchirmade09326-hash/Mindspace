@@ -1,10 +1,9 @@
 /**
- * Features — six-card grid showcasing DrGodly's core FHIR EMR capabilities.
+ * Features — patient-focused overview of MindSpace's care journey.
  *
  * Layer: client / (marketing) / components
  *
- * Highlights: FHIR R4 native records, AI intake agents, HIPAA compliance,
- * MCP server integration, voice AI consultation, and full telemedicine workflow.
+ * Highlights: guided chat and voice intake, appointments, and connected care.
  */
 
 "use client";
@@ -13,12 +12,11 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  Database,
-  Brain,
-  ShieldCheck,
-  Server,
+  MessageCircle,
+  CalendarDays,
+  ClipboardList,
+  Heart,
   Mic,
-  Stethoscope,
 } from "lucide-react";
 
 // ── Animation variants ──────────────────────────────────────────────────────
@@ -37,46 +35,46 @@ const itemVariants = {
 
 const features = [
   {
-    icon: <Database className="h-8 w-8 text-primary" />,
-    title: "FHIR R4 Native EMR",
-    badge: "HL7 Standard",
+    icon: <MessageCircle className="h-8 w-8 text-primary" />,
+    title: "Start with a conversation",
+    badge: "Your pace",
     description:
-      "Every patient record, appointment, observation, and encounter is stored as an HL7 FHIR R4 resource — giving you industry-standard interoperability from day one.",
-  },
-  {
-    icon: <Brain className="h-8 w-8 text-primary" />,
-    title: "AI Clinical Agents",
-    badge: "Autonomous",
-    description:
-      "Intelligent intake agents collect patient symptoms via voice or text before appointments. AI extracts SOAP notes, differential diagnoses, and FHIR Observations automatically.",
-  },
-  {
-    icon: <ShieldCheck className="h-8 w-8 text-primary" />,
-    title: "HIPAA Compliant by Design",
-    badge: "Compliance",
-    description:
-      "End-to-end encryption, BAA-ready infrastructure, complete audit trails on every clinical action, and zero PHI leakage. HIPAA compliance is baked in — not bolted on.",
-  },
-  {
-    icon: <Server className="h-8 w-8 text-primary" />,
-    title: "MCP Server for EMR",
-    badge: "New",
-    description:
-      "Expose your FHIR EMR as a Model Context Protocol (MCP) server. Connect AI assistants like Claude directly to patient records for structured, queryable clinical intelligence.",
+      "Share what is on your mind through a guided chat or voice intake. Start wherever feels easiest, and take your time.",
   },
   {
     icon: <Mic className="h-8 w-8 text-primary" />,
-    title: "Voice AI Consultation",
-    badge: "Real-Time",
+    title: "Choose how to share",
+    badge: "Chat or voice",
     description:
-      "Real-time voice consultations with automatic transcription, AI-generated SOAP notes, and instant FHIR Encounter creation. Clinicians focus on patients — AI handles the documentation.",
+      "Write things down or talk them through. MindSpace gives you options for starting your care journey.",
   },
   {
-    icon: <Stethoscope className="h-8 w-8 text-primary" />,
-    title: "End-to-End Telemedicine",
-    badge: "Full Stack",
+    icon: <Heart className="h-8 w-8 text-primary" />,
+    title: "Keep your care together",
+    badge: "One space",
     description:
-      "Book → AI Intake → Doctor Review → Live Consult → FHIR Record. A complete telemedicine workflow for patients and practitioners, with AI at every step.",
+      "Find your appointments, health information, and care updates in your patient dashboard.",
+  },
+  {
+    icon: <CalendarDays className="h-8 w-8 text-primary" />,
+    title: "Prepare for appointments",
+    badge: "Feel ready",
+    description:
+      "Share relevant details before your appointment so your care team has context for the conversation.",
+  },
+  {
+    icon: <ClipboardList className="h-8 w-8 text-primary" />,
+    title: "A guided next step",
+    badge: "When ready",
+    description:
+      "After intake, continue to your patient workspace to see available care options and follow-up steps.",
+  },
+  {
+    icon: <Heart className="h-8 w-8 text-primary" />,
+    title: "Your care, connected",
+    badge: "MindSpace",
+    description:
+      "Appointments, care conversations, and health records are brought together in one place.",
   },
 ];
 
@@ -98,14 +96,14 @@ export default function Features() {
       <div className="max-w-[110rem] mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div variants={itemVariants} className="text-center max-w-3xl mx-auto mb-16">
           <span className="text-primary font-semibold tracking-wider uppercase text-sm">
-            Platform Capabilities
+            A calmer way to get started
           </span>
           <h2 className="mt-2 text-3xl sm:text-4xl font-bold text-foreground">
-            Everything a Modern FHIR EMR Should Do
+            Support that meets you where you are
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            From AI-powered intake to HIPAA-compliant FHIR records, DrGodly handles the
-            full clinical workflow — so clinicians can focus on patients, not paperwork.
+            Start with a conversation, choose how you want to share, and find your
+            next steps without having to do everything at once.
           </p>
         </motion.div>
 

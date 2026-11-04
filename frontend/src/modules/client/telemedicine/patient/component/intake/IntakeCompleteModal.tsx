@@ -3,14 +3,10 @@
  *
  * Layer: client / telemedicine / patient / intake
  *
- * UI mirrors drgodly-mvp IntakeCompleteModal exactly:
+ * UI shown after an encrypted MindSpace transcript has been persisted:
  *   - Large CheckCircle2 success icon in a green circle
- *   - "Intake Session Completed" title
- *   - "Book Appointment" full-width link button (h-12)
+ *   - "Intake Session Saved" title
  *   - "Maybe Later" ghost button
- *
- * "Book Appointment" navigates to the booking wizard with ?intake_id={id}
- * so the wizard can link the booked FHIR appointment back to this intake.
  */
 
 "use client";
@@ -24,18 +20,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { CalendarCheck, CheckCircle2 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { CheckCircle2 } from "lucide-react";
 
 /** Props for IntakeCompleteModal. */
 interface IntakeCompleteModalProps {
   /** Controls dialog visibility. */
   open: boolean;
-  /** Local Intake.id returned from createIntakeAction / updateIntakeAction. */
-  intakeId: number;
-  /** Localised base path for building the booking link, e.g. "/en/bezs/telemedicine/patient". */
+  /** MindSpace UUID for the saved intake. */
+  intakeId: string;
+  /** Localised base path for returning to the member dashboard. */
   basePath: string;
 }
 
@@ -43,14 +37,14 @@ interface IntakeCompleteModalProps {
  * Post-intake completion modal.
  *
  * @param open - Whether the dialog is visible.
- * @param intakeId - The completed intake's local ID.
+ * @param intakeId - The completed MindSpace intake's UUID.
  * @param basePath - Locale-prefixed base path for navigation.
  */
 export function IntakeCompleteModal({ open, intakeId, basePath }: IntakeCompleteModalProps) {
   const router = useRouter();
 
   function handleClose() {
-    router.push(`${basePath}/appointments`);
+    router.push(basePath);
   }
 
   return (
@@ -68,33 +62,20 @@ export function IntakeCompleteModal({ open, intakeId, basePath }: IntakeComplete
           </div>
 
           <DialogTitle className="text-xl font-semibold text-foreground">
-            Intake Session Completed
+            Intake Session Saved
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-base">
-            Great job! Your intake session is now complete. Would you like to
-            book an appointment with the doctor?
+            Your transcript is encrypted and saved in your MindSpace account.
           </DialogDescription>
         </DialogHeader>
 
         <DialogFooter className="flex flex-col gap-3 sm:flex-col mt-6">
-          {/* Book appointment — Link so the browser handles the navigation */}
-          <Link
-            href={`${basePath}/appointments/book?intake_id=${intakeId}`}
-            className={cn(
-              buttonVariants(),
-              "w-full gap-2 h-12 text-base font-medium",
-            )}
-          >
-            <CalendarCheck className="h-5 w-5" />
-            Book Appointment
-          </Link>
-
           <Button
             variant="ghost"
             onClick={handleClose}
             className="w-full h-11 text-muted-foreground hover:text-foreground"
           >
-            Maybe Later
+            Done
           </Button>
         </DialogFooter>
       </DialogContent>

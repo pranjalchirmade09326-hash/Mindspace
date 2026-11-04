@@ -1,11 +1,11 @@
 /**
- * Winston logger configuration for the drgodly server.
+ * Winston logger configuration for the MindSpace server.
  *
  * Provides a singleton Winston logger with:
  * - Console transport (colourised, dev-friendly)
  * - Daily-rotating file transports per log level (info / error / warn / debug)
  *
- * Log files are written to LOG_DIR (env var) or "./logs/drgodly" by default.
+ * Log files are written to LOG_DIR (env var) or "./logs/mindspace" by default.
  * Each file rotates daily and is retained for 2 days before automatic deletion.
  */
 
@@ -15,7 +15,7 @@ import winston from "winston";
 import "winston-daily-rotate-file";
 
 /** Directory where rotating log files are stored. */
-const LOG_DIR = process.env.LOG_DIR ?? "./logs/drgodly";
+const LOG_DIR = process.env.LOG_DIR ?? "./logs/mindspace";
 
 // Ensure the log directory exists before Winston tries to write to it.
 if (!fs.existsSync(LOG_DIR)) {
@@ -104,7 +104,7 @@ export function getWinstonLogger(): winston.Logger {
       winston.format.splat(),
       winston.format.json()
     ),
-    defaultMeta: { app: "drgodly" },
+    defaultMeta: { app: "mindspace" },
     transports: [
       consoleTransport,
       createDailyRotateTransport("info"),

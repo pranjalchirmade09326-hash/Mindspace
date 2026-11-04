@@ -54,8 +54,8 @@ export class OrganizationRestApiService implements IOrganizationsService {
     this.client = axios.create({
       baseURL: `${url}/organizations`,
       headers: { "Content-Type": "application/json" },
-      // 10 s timeout — aligns with the fhir-gql service's own FHIR client default.
-      timeout: 10_000,
+      // Bounded timeout (1500ms <= 2000ms) to prevent page hangs on fhir-gql delays
+      timeout: 1500,
     });
 
     /**
@@ -87,6 +87,10 @@ export class OrganizationRestApiService implements IOrganizationsService {
       typeof body?.detail === "string"
         ? body.detail
         : (error.response?.statusText ?? error.message);
+
+    if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+      throw new BadGatewayError("fhir-gql request timed out after 1500ms");
+    }
 
     switch (error.response?.status) {
       case 400:

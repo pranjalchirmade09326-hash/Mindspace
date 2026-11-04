@@ -91,3 +91,4 @@ async def resolve_subject(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Unsupported subject type: '{subject_type.value}'.",
         )
+

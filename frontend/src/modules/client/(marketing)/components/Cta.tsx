@@ -1,10 +1,9 @@
 /**
- * Cta — final call-to-action section on the DrGodly marketing page.
+ * Cta — final call-to-action section on the MindSpace marketing page.
  *
  * Layer: client / (marketing) / components
  *
- * Encourages healthcare providers to start their free trial or contact sales,
- * with messaging focused on FHIR EMR transformation and AI-powered care.
+ * Invites visitors to start a guided intake or learn more about the platform.
  */
 
 "use client";
@@ -13,11 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { OAuthPkceButton } from "@/modules/client/auth/components/OAuthPkceButton";
 import { motion } from "framer-motion";
-import { ArrowRight, ShieldCheck, Database, Server } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { AuthResponse } from "@/modules/server/auth/types";
 
 /**
- * Full-width CTA banner encouraging sign-up or sales contact.
+ * Full-width CTA banner encouraging sign-up or a platform inquiry.
  *
  * @param session - Active auth session; controls CTA button variant.
  */
@@ -41,38 +40,20 @@ export default function Cta({ session }: { session: AuthResponse | null }) {
 
           <div className="relative z-10 max-w-3xl mx-auto">
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-primary-foreground tracking-tight">
-              Transform Your Practice with FHIR-Native AI
+              You can take the first step today
             </h2>
             <p className="mt-6 text-lg sm:text-xl text-primary-foreground/80 max-w-2xl mx-auto">
-              Join forward-thinking healthcare providers already using DrGodly to
-              eliminate documentation burden, automate FHIR record creation, and
-              deliver better patient outcomes with AI clinical agents.
+              Take the first step with a guided chat or voice intake, then keep
+              appointments and health information together in MindSpace.
             </p>
-
-            {/* Compliance badges */}
-            <div className="mt-8 flex flex-wrap items-center justify-center gap-4 text-primary-foreground/70 text-sm">
-              <span className="flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4" /> HIPAA Compliant
-              </span>
-              <span className="text-primary-foreground/40">·</span>
-              <span className="flex items-center gap-1.5">
-                <Database className="w-4 h-4" /> HL7 FHIR R4
-              </span>
-              <span className="text-primary-foreground/40">·</span>
-              <span className="flex items-center gap-1.5">
-                <Server className="w-4 h-4" /> MCP Server Ready
-              </span>
-            </div>
 
             <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
               {!session ? (
                 <>
-                  <OAuthPkceButton
-                    size="lg"
-                    variant="secondary"
+                  <OAuthPkceButton href="/signup" size="lg" variant="secondary"
                     className="w-full sm:w-auto rounded-full px-8 h-14 text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
                   >
-                    Start Free — No Credit Card
+                    Get started
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </OAuthPkceButton>
                   <Link href="/contact">
@@ -81,12 +62,12 @@ export default function Cta({ session }: { session: AuthResponse | null }) {
                       variant="outline"
                       className="w-full sm:w-auto rounded-full px-8 h-14 text-lg bg-transparent border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10"
                     >
-                      Book a Clinical Demo
+                      Learn about the care platform
                     </Button>
                   </Link>
                 </>
               ) : (
-                <Link href={session.session.activeRoleRedirectUrl ?? "/dashboard"}>
+                <Link href={((session.session.activeRoleRedirectUrl ?? "/bezs/telemedicine/doctor/dashboard").replace(/^\/(?:en|hi|ta)/, "") || "/bezs/telemedicine/doctor/dashboard") as any}>
                   <Button
                     size="lg"
                     variant="secondary"

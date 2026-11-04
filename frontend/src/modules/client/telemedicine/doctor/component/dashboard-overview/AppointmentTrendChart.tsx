@@ -12,6 +12,7 @@
 
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import {
   ResponsiveContainer,
@@ -49,6 +50,12 @@ interface AppointmentTrendChartProps {
  * @param data - Array of monthly data points.
  */
 export function AppointmentTrendChart({ data }: AppointmentTrendChartProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   return (
     <Card className="rounded-xl p-4 h-full">
       <div className="flex justify-between items-center mb-2">
@@ -56,67 +63,71 @@ export function AppointmentTrendChart({ data }: AppointmentTrendChartProps) {
         <p className="text-xs text-muted-foreground">Last 6 months</p>
       </div>
 
-      <ResponsiveContainer width="100%" height="90%">
-        <BarChart data={data} barSize={20}>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            vertical={false}
-            stroke="var(--border)"
-          />
+      <div className="w-full h-[90%] min-h-[160px]">
+        {isMounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} barSize={20}>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                vertical={false}
+                stroke="var(--border)"
+              />
 
-          <XAxis
-            dataKey="name"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
-          />
+              <XAxis
+                dataKey="name"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+              />
 
-          <YAxis
-            allowDecimals={false}
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
-          />
+              <YAxis
+                allowDecimals={false}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+              />
 
-          <Tooltip
-            contentStyle={{
-              borderRadius: "0.5rem",
-              backgroundColor: "var(--popover)",
-              border: "1px solid var(--border)",
-              color: "var(--popover-foreground)",
-              fontSize: 13,
-            }}
-          />
+              <Tooltip
+                contentStyle={{
+                  borderRadius: "0.5rem",
+                  backgroundColor: "var(--popover)",
+                  border: "1px solid var(--border)",
+                  color: "var(--popover-foreground)",
+                  fontSize: 13,
+                }}
+              />
 
-          <Legend
-            align="left"
-            verticalAlign="top"
-            wrapperStyle={{
-              paddingTop: "12px",
-              paddingBottom: "24px",
-              textTransform: "capitalize",
-              color: "var(--foreground)",
-              fontSize: 13,
-            }}
-          />
+              <Legend
+                align="left"
+                verticalAlign="top"
+                wrapperStyle={{
+                  paddingTop: "12px",
+                  paddingBottom: "24px",
+                  textTransform: "capitalize",
+                  color: "var(--foreground)",
+                  fontSize: 13,
+                }}
+              />
 
-          <Bar
-            dataKey="booked"
-            name="Total"
-            fill="var(--muted-foreground)"
-            legendType="circle"
-            radius={[6, 6, 0, 0]}
-          />
+              <Bar
+                dataKey="booked"
+                name="Total"
+                fill="var(--muted-foreground)"
+                legendType="circle"
+                radius={[6, 6, 0, 0]}
+              />
 
-          <Bar
-            dataKey="completed"
-            name="Completed"
-            fill="var(--primary)"
-            legendType="circle"
-            radius={[6, 6, 0, 0]}
-          />
-        </BarChart>
-      </ResponsiveContainer>
+              <Bar
+                dataKey="completed"
+                name="Completed"
+                fill="var(--primary)"
+                legendType="circle"
+                radius={[6, 6, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : null}
+      </div>
     </Card>
   );
 }

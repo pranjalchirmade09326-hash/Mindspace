@@ -17,6 +17,7 @@ so the underlying httpx connection pool is shared and reused across all requests
 
 import httpx
 from fastapi import HTTPException
+from fastapi.encoders import jsonable_encoder
 
 from app.auth.models import AuthUser
 
@@ -119,6 +120,7 @@ class FhirClient:
         # Inject the audit field unless the caller opts out (e.g. sub-resource schemas
         # that use extra="forbid" and have no created_by field).
         body = {**data, "created_by": actor.sub} if inject_audit else data
+        body = jsonable_encoder(body)
         # Forward the Accept header per-request so the FHIR Server applies content
         # negotiation. httpx merges per-request headers with client-level headers.
         extra_headers = {"Accept": accept} if accept else {}
@@ -146,6 +148,7 @@ class FhirClient:
             The updated resource dict in FHIR R4 or plain JSON format.
         """
         body = {**data, "updated_by": actor.sub} if inject_audit else data
+        body = jsonable_encoder(body)
         extra_headers = {"Accept": accept} if accept else {}
         r = await self._http.patch(path, json=body, headers=extra_headers)
         return await self._handle(r)
@@ -196,3 +199,4 @@ class FhirClient:
         in test environments.
         """
         await self._http.aclose()
+

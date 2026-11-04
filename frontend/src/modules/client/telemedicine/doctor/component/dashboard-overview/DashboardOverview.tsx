@@ -223,12 +223,21 @@ export function DashboardOverview({
 
   const availableDaysSet = useMemo(() => new Set(availableDays), [availableDays]);
 
+  const doctorDisplayName = useMemo(() => {
+    const raw = (doctorName ?? "").trim();
+    if (!raw) return "Doctor";
+    const withoutPrefix = raw.replace(/^dr\.?\s*/i, "").trim();
+    const tokens = withoutPrefix.split(/\s+/).filter(Boolean);
+    const firstName = tokens[0] || "Doctor";
+    return `Dr. ${firstName}`;
+  }, [doctorName]);
+
   return (
     <div className="space-y-6">
       {/* ── Welcome heading ── */}
       <div>
         <h1 className="text-2xl font-semibold">
-          Practice Overview — Dr. {doctorName.split(" ")[0]}
+          Practice Overview — {doctorDisplayName}
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           A snapshot of your appointments and organization activity.

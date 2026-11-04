@@ -1,324 +1,158 @@
-/**
- * Hero — primary above-the-fold section for the DrGodly marketing page.
- *
- * Layer: client / (marketing) / components
- *
- * Positions DrGodly as an AI-native, HIPAA-compliant FHIR R4 EMR platform
- * with MCP server integration. Includes animated badge row, headline, CTA
- * buttons, a mock EMR card visual, and a key-metric stat row.
- */
-
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Link } from "@/i18n/navigation";
 import { OAuthPkceButton } from "@/modules/client/auth/components/OAuthPkceButton";
+import type { AuthResponse } from "@/modules/server/auth/types";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
-  ShieldCheck,
-  Database,
-  Server,
+  Heart,
+  MessageCircle,
   Mic,
-  FileText,
-  Brain,
-  CheckCircle2,
+  ShieldCheck,
 } from "lucide-react";
-import type { AuthResponse } from "@/modules/server/auth/types";
 
-// ── Animation variants ──────────────────────────────────────────────────────
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.12, delayChildren: 0.2 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 30 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.7, ease: "easeOut" as const },
-  },
-};
-
-const floatingVariants = {
-  initial: { y: 0 },
-  animate: {
-    y: [-8, 8, -8],
-    transition: { duration: 4, repeat: Infinity, ease: "easeInOut" as const },
-  },
-};
-
-// ── FHIR resource rows shown in the mock EMR card ─────────────────────────
-
-const fhirRows = [
-  { resource: "Patient", id: "PAT-00241", status: "Active", color: "text-blue-500" },
-  { resource: "Appointment", id: "APT-00872", status: "Booked", color: "text-emerald-500" },
-  { resource: "Observation", id: "OBS-03301", status: "Final", color: "text-violet-500" },
-  { resource: "Encounter", id: "ENC-00118", status: "Finished", color: "text-amber-500" },
-];
-
-// ── Component ──────────────────────────────────────────────────────────────
-
-/**
- * Full-width hero section positioning DrGodly as the AI-native FHIR EMR.
- *
- * @param session - Active auth session; controls CTA button variant.
- */
 export default function Hero({ session }: { session: AuthResponse | null }) {
   return (
-    <section className="relative pt-32 pb-20 sm:pt-40 sm:pb-32 overflow-hidden bg-background">
-      {/* Background blobs */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl pointer-events-none">
-        <div className="absolute top-20 right-0 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl opacity-60 animate-pulse" />
-        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-emerald-500/5 rounded-full blur-3xl opacity-40" />
+    <section className="relative isolate overflow-hidden bg-[#f7faf8] pb-20 pt-28 sm:pt-36 lg:pb-28">
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -left-32 top-12 size-[28rem] rounded-full bg-emerald-100/70 blur-3xl" />
+        <div className="absolute -right-32 top-24 size-[32rem] rounded-full bg-sky-100/70 blur-3xl" />
       </div>
 
-      <div className="max-w-[110rem] mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-20">
         <motion.div
-          className="grid lg:grid-cols-2 gap-16 items-center"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="mx-auto max-w-2xl text-center lg:mx-0 lg:text-left"
         >
-          {/* ── Left column: copy + CTAs ── */}
-          <div className="text-center lg:text-left max-w-2xl mx-auto lg:mx-0">
-            {/* Live-status pill */}
-            <motion.div variants={itemVariants} className="inline-flex items-center gap-2 mb-6">
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-              </span>
-              <span className="text-sm text-muted-foreground font-medium">
-                FHIR R4 Native &middot; HIPAA Compliant &middot; MCP Server Ready
-              </span>
-            </motion.div>
+          <Badge className="mb-6 gap-2 rounded-full border border-emerald-200 bg-white/80 px-4 py-2 text-sm font-medium text-emerald-900 shadow-none hover:bg-white">
+            <Heart className="size-4 fill-emerald-100 text-emerald-700" />
+            You don&apos;t have to figure it out all at once
+          </Badge>
 
-            {/* Headline */}
-            <motion.h1
-              variants={itemVariants}
-              className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground tracking-tight leading-[1.08]"
-            >
-              The AI-Native{" "}
-              <span className="text-primary">FHIR EMR</span>{" "}
-              Built for Modern Healthcare
-            </motion.h1>
+          <h1 className="text-4xl font-semibold leading-[1.08] tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+            A little space to
+            <span className="block text-emerald-800">talk things through.</span>
+          </h1>
+          <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-slate-600 lg:mx-0">
+            When you&apos;re ready, start with a guided chat or voice conversation.
+            MindSpace helps you take the next step at your own pace.
+          </p>
 
-            {/* Subheadline */}
-            <motion.p
-              variants={itemVariants}
-              className="mt-6 text-lg sm:text-xl text-muted-foreground leading-relaxed"
-            >
-              DrGodly unifies electronic medical records, FHIR R4 interoperability,
-              AI-driven clinical agents, and an MCP server — all inside a single
-              HIPAA-compliant telemedicine platform.
-            </motion.p>
-
-            {/* CTA buttons */}
-            <motion.div
-              variants={itemVariants}
-              className="mt-10 flex flex-col sm:flex-row justify-center lg:justify-start items-center gap-4"
-            >
-              {!session ? (
-                <>
-                  <OAuthPkceButton
-                    size="lg"
-                    className="rounded-full px-8 h-12 text-base shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all"
-                  >
-                    Start Free — No Credit Card
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </OAuthPkceButton>
-                  <OAuthPkceButton
-                    variant="outline"
-                    size="lg"
-                    className="rounded-full px-8 h-12 text-base border-primary/20 hover:bg-primary/5"
-                  >
-                    View Live Demo
-                  </OAuthPkceButton>
-                </>
-              ) : (
-                <Link href={session.session.activeRoleRedirectUrl ?? "/dashboard"}>
-                  <Button
-                    size="lg"
-                    className="rounded-full px-8 h-12 text-base shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all"
-                  >
-                    Open Dashboard
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
-              )}
-            </motion.div>
-
-            {/* Trust badges */}
-            <motion.div
-              variants={itemVariants}
-              className="mt-12 pt-8 border-t border-border/50 flex flex-wrap items-center justify-center lg:justify-start gap-6 text-muted-foreground"
-            >
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-primary" />
-                <span className="text-sm font-medium">HIPAA Compliant</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Database className="w-5 h-5 text-primary" />
-                <span className="text-sm font-medium">HL7 FHIR R4</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Server className="w-5 h-5 text-primary" />
-                <span className="text-sm font-medium">MCP Server</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Brain className="w-5 h-5 text-primary" />
-                <span className="text-sm font-medium">AI Agents</span>
-              </div>
-            </motion.div>
+          <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
+            {!session ? (
+              <>
+                <OAuthPkceButton
+                  href="/signup"
+                  size="lg"
+                  className="h-12 rounded-full bg-emerald-800 px-7 text-base text-white shadow-sm hover:bg-emerald-900"
+                >
+                  Get started
+                  <ArrowRight className="ml-2 size-4" />
+                </OAuthPkceButton>
+                <OAuthPkceButton
+                  href="/login"
+                  variant="outline"
+                  size="lg"
+                  className="h-12 rounded-full border-slate-300 bg-white/70 px-7 text-base text-slate-800 hover:bg-white"
+                >
+                  Sign in
+                </OAuthPkceButton>
+              </>
+            ) : (
+              <Link href="/bezs">
+                <Button
+                  size="lg"
+                  className="h-12 rounded-full bg-emerald-800 px-7 text-base text-white hover:bg-emerald-900"
+                >
+                  Go to your care space
+                  <ArrowRight className="ml-2 size-4" />
+                </Button>
+              </Link>
+            )}
           </div>
 
-          {/* ── Right column: mock FHIR EMR card ── */}
-          <motion.div variants={itemVariants} className="relative hidden lg:block">
-            <div className="relative w-full max-w-[560px] mx-auto">
-              {/* Main card */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 1, delay: 0.4 }}
-                className="relative bg-card border border-border rounded-3xl shadow-2xl overflow-hidden z-20"
-              >
-                {/* Card header */}
-                <div className="px-6 py-4 border-b border-border bg-muted/40 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-red-400/80" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/80" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-green-400/80" />
-                  </div>
-                  <span className="text-xs font-mono text-muted-foreground">
-                    DrGodly FHIR EMR — v1.0
-                  </span>
-                  <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-500">
-                    Live
-                  </Badge>
-                </div>
-
-                {/* FHIR resource table */}
-                <div className="p-6 space-y-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      FHIR R4 Resources
-                    </span>
-                    <span className="text-xs text-muted-foreground font-mono">4 records</span>
-                  </div>
-
-                  {fhirRows.map((row, i) => (
-                    <motion.div
-                      key={row.id}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.6 + i * 0.1 }}
-                      className="flex items-center justify-between px-4 py-3 rounded-xl bg-muted/40 border border-border/50"
-                    >
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 className={`w-4 h-4 ${row.color}`} />
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">{row.resource}</p>
-                          <p className="text-[11px] font-mono text-muted-foreground">{row.id}</p>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className={`text-[10px] border-border/60 ${row.color}`}>
-                        {row.status}
-                      </Badge>
-                    </motion.div>
-                  ))}
-
-                  {/* AI Intake summary */}
-                  <div className="mt-4 p-4 rounded-xl bg-primary/5 border border-primary/15">
-                    <div className="flex items-start gap-3">
-                      <Brain className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                      <div>
-                        <p className="text-xs font-semibold text-foreground mb-1">AI Intake Summary</p>
-                        <p className="text-[11px] text-muted-foreground leading-relaxed">
-                          Chief complaint: persistent headache. Differential: tension headache,
-                          migraine. Risk: Low. SOAP note generated.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Floating badge: HIPAA */}
-              <motion.div
-                variants={floatingVariants}
-                initial="initial"
-                animate="animate"
-                className="absolute -top-4 -right-6 px-4 py-3 bg-card rounded-2xl shadow-xl border border-border z-30 flex items-center gap-2"
-              >
-                <ShieldCheck className="w-5 h-5 text-emerald-500" />
-                <div className="text-xs">
-                  <p className="font-semibold text-foreground">HIPAA</p>
-                  <p className="text-muted-foreground">Compliant</p>
-                </div>
-              </motion.div>
-
-              {/* Floating badge: MCP Server */}
-              <motion.div
-                variants={floatingVariants}
-                initial="initial"
-                animate="animate"
-                transition={{ delay: 1.5 }}
-                className="absolute -bottom-6 -left-6 px-4 py-3 bg-card rounded-2xl shadow-xl border border-border z-30 flex items-center gap-2"
-              >
-                <Server className="w-5 h-5 text-primary" />
-                <div className="text-xs">
-                  <p className="font-semibold text-foreground">MCP Server</p>
-                  <p className="text-muted-foreground">Connected</p>
-                </div>
-              </motion.div>
-
-              {/* Floating badge: Voice AI */}
-              <motion.div
-                variants={floatingVariants}
-                initial="initial"
-                animate="animate"
-                transition={{ delay: 0.8 }}
-                className="absolute top-1/2 -left-10 -translate-y-1/2 px-4 py-3 bg-card rounded-2xl shadow-xl border border-border z-30 flex items-center gap-2"
-              >
-                <Mic className="w-5 h-5 text-violet-500" />
-                <div className="text-xs">
-                  <p className="font-semibold text-foreground">Voice AI</p>
-                  <p className="text-muted-foreground">Active</p>
-                </div>
-              </motion.div>
-
-              <div className="absolute inset-0 bg-gradient-to-tr from-primary/15 to-emerald-500/10 rounded-full blur-3xl -z-10 transform rotate-12" />
-            </div>
-          </motion.div>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm text-slate-600 lg:justify-start">
+            <span className="inline-flex items-center gap-2">
+              <ShieldCheck className="size-4 text-emerald-700" />
+              A gentle place to begin
+            </span>
+            <span>Chat or voice, your choice</span>
+            <span>            Support, at your pace</span>
+          </div>
         </motion.div>
 
-        {/* ── Key metric row ── */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1, duration: 0.7 }}
-          className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6 border-t border-border/50 pt-12"
+          initial={{ opacity: 0, scale: 0.97, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.12 }}
+          className="relative mx-auto w-full max-w-lg"
         >
-          {[
-            { value: "80%", label: "Less Documentation Time", icon: <FileText className="w-5 h-5 text-primary" /> },
-            { value: "FHIR R4", label: "HL7 Interoperability Standard", icon: <Database className="w-5 h-5 text-primary" /> },
-            { value: "HIPAA", label: "Compliance Built-In", icon: <ShieldCheck className="w-5 h-5 text-primary" /> },
-            { value: "MCP", label: "AI Tool Integration Ready", icon: <Server className="w-5 h-5 text-primary" /> },
-          ].map((stat, i) => (
-            <div key={i} className="text-center flex flex-col items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                {stat.icon}
+          <div className="absolute -left-8 top-12 size-28 rounded-full bg-emerald-200/50 blur-2xl" />
+          <div className="absolute -right-6 bottom-10 size-32 rounded-full bg-sky-200/60 blur-2xl" />
+          <div className="relative rounded-[2rem] border border-white bg-white/90 p-5 shadow-[0_24px_80px_-32px_rgba(15,80,65,0.28)] sm:p-7">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-5">
+              <div className="flex items-center gap-3">
+                <div className="flex size-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800">
+                  <Heart className="size-5" />
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-900">MindSpace AI guide</p>
+                  <p className="text-sm text-slate-500">A guided way to get started</p>
+                </div>
               </div>
-              <p className="text-2xl sm:text-3xl font-bold text-foreground">{stat.value}</p>
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
+              <span className="size-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100" />
             </div>
-          ))}
+
+            <div className="space-y-4 py-6">
+              <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-[#f0f7f4] p-4 text-sm leading-6 text-slate-700">
+                Hi, welcome. What&apos;s been on your mind lately?
+              </div>
+              <div className="ml-auto max-w-[78%] rounded-2xl rounded-tr-sm bg-emerald-800 p-4 text-sm leading-6 text-white">
+                I&apos;m not sure where to start.
+              </div>
+              <div className="flex items-center gap-2 px-1 text-xs text-slate-500">
+                <span className="flex gap-1">
+                  <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+                  <span className="size-1.5 animate-pulse rounded-full bg-emerald-500 [animation-delay:120ms]" />
+                  <span className="size-1.5 animate-pulse rounded-full bg-emerald-500 [animation-delay:240ms]" />
+                </span>
+                That&apos;s okay. We can take it one step at a time.
+              </div>
+            </div>
+
+            <div className="grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2">
+              <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white text-emerald-800 shadow-sm">
+                  <MessageCircle className="size-5" />
+                </span>
+                <span>
+                  <span className="block font-medium text-slate-900">
+                    Chat when you&apos;re ready
+                  </span>
+                  <span className="text-xs text-slate-500">Write when ready</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-800">
+                  <Mic className="size-5" />
+                </span>
+                <span>
+                  <span className="block font-medium text-slate-900">
+                    Talk it through
+                  </span>
+                  <span className="text-xs text-slate-500">Talk it through</span>
+                </span>
+              </div>
+            </div>
+            <p className="mt-4 text-center text-xs leading-5 text-slate-500">
+              Choose what feels comfortable. You can continue at your own pace.
+            </p>
+          </div>
         </motion.div>
       </div>
     </section>

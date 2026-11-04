@@ -34,7 +34,7 @@ export function DocsTopNav() {
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetContent side="left" className="w-72 p-0">
             <SheetHeader className="border-b px-4 py-4">
-              <SheetTitle className="text-sm">Drgodly Mobile Guide</SheetTitle>
+              <SheetTitle className="text-sm">MindSpace Mobile Guide</SheetTitle>
             </SheetHeader>
             <div className="overflow-y-auto px-4 py-4" onClick={() => setOpen(false)}>
               <DocsNav />
@@ -52,13 +52,13 @@ export function DocsTopNav() {
         </Sheet>
 
         <Link href="/docs/mobile-guide" className="text-sm font-semibold">
-          Drgodly Mobile Guide
+          MindSpace Mobile Guide
         </Link>
       </div>
 
       <div className="flex items-center gap-3">
         <Link href="/" className="text-xs text-muted-foreground hover:text-foreground">
-          Back to Drgodly →
+          Back to MindSpace →
         </Link>
         <ThemeToggle />
       </div>

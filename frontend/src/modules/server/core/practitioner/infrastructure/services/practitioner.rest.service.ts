@@ -84,7 +84,7 @@ export class PractitionerRestApiService implements IPractitionersService {
     const client = axios.create({
       baseURL: `${url}/practitioners`,
       headers: { "Content-Type": "application/json" },
-      timeout: 10_000,
+      timeout: 1_500,
       maxRedirects: 5,
     });
 

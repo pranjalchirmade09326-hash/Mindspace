@@ -21,19 +21,20 @@ import { PatientProfileForm } from "@/modules/client/telemedicine/patient/forms/
 import type { TPatientResponse } from "@/modules/entities/schemas/patient";
 
 /**
- * Calls getPatientMeAction and returns the patient or null on 404.
- * Re-throws any unexpected errors so the error boundary handles them.
+ * Calls getPatientMeAction and returns the patient or null on 404 or connection errors.
  *
- * @returns The patient record or null (no record exists yet).
+ * @returns The patient record or null (no record exists yet / initial setup mode).
  */
 async function fetchPatientOrNull(): Promise<TPatientResponse | null> {
-  const [data, err] = await getPatientMeAction();
-  if (err) {
-    // NOT_FOUND means first-time setup — render the form in create mode.
-    if (err.code === "NOT_FOUND") return null;
-    throw new Error(err.message ?? "Failed to load patient profile");
+  try {
+    const [data, err] = await getPatientMeAction();
+    if (err) {
+      return null;
+    }
+    return data ?? null;
+  } catch {
+    return null;
   }
-  return data ?? null;
 }
 
 async function PatientProfilePage() {

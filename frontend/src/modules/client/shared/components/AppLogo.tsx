@@ -1,16 +1,3 @@
-/**
- * AppLogo — the DrGodly brand mark.
- *
- * Layer: client / shared / components
- *
- * Renders public/logo.png (the same square "DG" mark used for the browser
- * favicon at src/app/icon.png, copied into public/ since the favicon file
- * convention's route is for metadata generation only, not a general-purpose
- * asset URL). The image already carries its own background — render it
- * bare, don't wrap it in another colored badge.
- */
-
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 export function AppLogo({
@@ -22,12 +9,22 @@ export function AppLogo({
   className?: string;
 }) {
   return (
-    <Image
-      src="/logo.png"
-      alt="DrGodly"
+    <svg
+      role="img"
+      aria-label="MindSpace"
+      viewBox="0 0 48 48"
       width={size}
       height={size}
-      className={cn("rounded-lg", className)}
-    />
+      className={cn("shrink-0", className)}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect width="48" height="48" rx="16" fill="#E8F4EE" />
+      <path
+        d="M24 10.5c-1.6 5.7-5.8 9.9-11.5 11.5 5.7 1.6 9.9 5.8 11.5 11.5 1.6-5.7 5.8-9.9 11.5-11.5-5.7-1.6-9.9-5.8-11.5-11.5Z"
+        fill="#236B54"
+      />
+      <circle cx="24" cy="23" r="3.2" fill="#F7FAF8" />
+    </svg>
   );
 }

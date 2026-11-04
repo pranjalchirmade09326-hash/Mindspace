@@ -1,0 +1,794 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AppPrincipal {
+  userId         String           @id @map("user_id") @db.Text
+  accountState   String           @default("active") @map("account_state") @db.Text
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deactivatedAt  DateTime?        @map("deactivated_at") @db.Timestamptz(6)
+  roles          RoleAssignment[]
+  roleAssignmentsGranted RoleAssignment[] @relation("RoleGrantor")
+  consents       ConsentRecord[]  @relation("ConsentOwner")
+  receivedConsents ConsentRecord[] @relation("ConsentRecipient")
+  intakeSessions IntakeSession[]
+  auditEvents     AuditEvent[]
+  profile         MemberProfile?
+  preferences     MemberPreference?
+  privacyRequests PrivacyRequest[] @relation("PrivacyRequestOwner")
+  operatedPrivacyRequests PrivacyRequest[] @relation("PrivacyRequestOperator")
+
+  @@map("app_principals")
+}
+
+model RoleAssignment {
+  id              String       @id @default(uuid()) @db.Uuid
+  userId           String       @map("user_id") @db.Text
+  roleCode         String       @map("role_code") @db.Text
+  assignmentState  String       @map("assignment_state") @db.Text
+  grantedByUserId  String?      @map("granted_by_user_id") @db.Text
+  grantedAt        DateTime     @default(now()) @map("granted_at") @db.Timestamptz(6)
+  expiresAt        DateTime?    @map("expires_at") @db.Timestamptz(6)
+  revokedAt        DateTime?    @map("revoked_at") @db.Timestamptz(6)
+  decisionReason   String?      @map("decision_reason") @db.Text
+  user             AppPrincipal @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  grantedBy        AppPrincipal? @relation("RoleGrantor", fields: [grantedByUserId], references: [userId], onDelete: SetNull)
+
+  @@index([userId, roleCode, assignmentState])
+  @@map("role_assignments")
+}
+
+model ConsentRecord {
+  id              String          @id @default(uuid()) @db.Uuid
+  userId          String          @map("user_id") @db.Text
+  purposeCode     String          @map("purpose_code") @db.Text
+  recipientUserId String?         @map("recipient_user_id") @db.Text
+  recipientScope  String?         @map("recipient_scope") @db.Text
+  dataScope       Json            @default("{}") @map("data_scope") @db.JsonB
+  policyVersion   String          @map("policy_version") @db.Text
+  consentState    String          @map("consent_state") @db.Text
+  capturedBy      String          @map("captured_by") @db.Text
+  capturedAt      DateTime        @default(now()) @map("captured_at") @db.Timestamptz(6)
+  expiresAt       DateTime?       @map("expires_at") @db.Timestamptz(6)
+  supersedesId    String?         @map("supersedes_id") @db.Uuid
+  user            AppPrincipal    @relation("ConsentOwner", fields: [userId], references: [userId], onDelete: Restrict)
+  recipient       AppPrincipal?   @relation("ConsentRecipient", fields: [recipientUserId], references: [userId], onDelete: SetNull)
+  supersedes      ConsentRecord?  @relation("ConsentHistory", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy    ConsentRecord[] @relation("ConsentHistory")
+  intakeSessions  IntakeSession[]
+
+  @@index([userId, purposeCode, capturedAt(sort: Desc)])
+  @@map("consent_records")
+}
+
+model MemberProfile {
+  userId          String        @id @map("user_id") @db.Text
+  displayName     String        @map("display_name") @db.Text
+  eligibilityState String       @default("unverified") @map("eligibility_state") @db.Text
+  profileState    String        @default("active") @map("profile_state") @db.Text
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user            AppPrincipal  @relation(fields: [userId], references: [userId], onDelete: Restrict)
+
+  @@map("member_profiles")
+}
+
+model MemberPreference {
+  userId              String       @id @map("user_id") @db.Text
+  locale              String       @default("en") @db.Text
+  timezone            String       @default("UTC") @db.Text
+  preferredLanguages  String[]     @default([]) @map("preferred_languages")
+  accessibility       Json         @default("{}") @db.JsonB
+  communication       Json         @default("{}") @db.JsonB
+  supportPreferences  Json         @default("{}") @map("support_preferences") @db.JsonB
+  updatedAt           DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                AppPrincipal @relation(fields: [userId], references: [userId], onDelete: Restrict)
+
+  @@map("member_preferences")
+}
+
+model PrivacyRequest {
+  id                 String        @id @default(uuid()) @db.Uuid
+  userId             String        @map("user_id") @db.Text
+  requestType        String        @map("request_type") @db.Text
+  requestState       String        @default("received") @map("request_state") @db.Text
+  verificationState  String        @default("pending") @map("verification_state") @db.Text
+  requestedAt        DateTime      @default(now()) @map("requested_at") @db.Timestamptz(6)
+  dueAt              DateTime?     @map("due_at") @db.Timestamptz(6)
+  completedAt        DateTime?     @map("completed_at") @db.Timestamptz(6)
+  resolutionCode     String?       @map("resolution_code") @db.Text
+  operatorUserId     String?       @map("operator_user_id") @db.Text
+  user               AppPrincipal  @relation("PrivacyRequestOwner", fields: [userId], references: [userId], onDelete: Restrict)
+  operator           AppPrincipal? @relation("PrivacyRequestOperator", fields: [operatorUserId], references: [userId], onDelete: SetNull)
+
+  @@index([userId, requestedAt(sort: Desc)])
+  @@index([requestState, requestedAt])
+  @@map("privacy_requests")
+}
+
+model IntakeSession {
+  id             String           @id @default(uuid()) @db.Uuid
+  memberId       String           @map("member_id") @db.Text
+  channel        String           @db.Text
+  status         String           @default("in_progress") @db.Text
+  locale         String           @db.Text
+  consentId      String?          @map("consent_id") @db.Uuid
+  startedAt      DateTime         @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime?        @map("completed_at") @db.Timestamptz(6)
+  lastResumedAt  DateTime?        @map("last_resumed_at") @db.Timestamptz(6)
+  agentVersion   String?          @map("agent_version") @db.Text
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  member         AppPrincipal     @relation(fields: [memberId], references: [userId], onDelete: Restrict)
+  consent        ConsentRecord?   @relation(fields: [consentId], references: [id], onDelete: Restrict)
+  responses      IntakeResponse[]
+
+  @@index([memberId, createdAt(sort: Desc)])
+  @@index([status, updatedAt])
+  @@map("intake_sessions")
+}
+
+model IntakeResponse {
+  id                String        @id @default(uuid()) @db.Uuid
+  intakeId          String        @map("intake_id") @db.Uuid
+  sequenceNo        Int           @map("sequence_no")
+  topicCode         String?       @map("topic_code") @db.Text
+  responseState     String        @map("response_state") @db.Text
+  sourceType        String        @default("member") @map("source_type") @db.Text
+  contentCiphertext Bytes?        @map("content_ciphertext") @db.ByteA
+  keyVersion        String?       @map("key_version") @db.Text
+  structuredValue   Json?         @map("structured_value") @db.JsonB
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  supersedesId      String?       @map("supersedes_id") @db.Uuid
+  intake            IntakeSession @relation(fields: [intakeId], references: [id], onDelete: Restrict)
+  supersedes        IntakeResponse? @relation("ResponseHistory", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy      IntakeResponse[] @relation("ResponseHistory")
+
+  @@unique([intakeId, sequenceNo])
+  @@index([intakeId, createdAt])
+  @@map("intake_responses")
+}
+
+model AuditEvent {
+  id            String        @id @default(uuid()) @db.Uuid
+  actorUserId   String?       @map("actor_user_id") @db.Text
+  actorType     String        @map("actor_type") @db.Text
+  actionCode    String        @map("action_code") @db.Text
+  resourceType  String        @map("resource_type") @db.Text
+  resourceId    String?       @map("resource_id") @db.Text
+  purposeCode   String?       @map("purpose_code") @db.Text
+  outcome       String        @db.Text
+  correlationId String?       @map("correlation_id") @db.Uuid
+  occurredAt    DateTime      @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  metadata      Json          @default("{}") @db.JsonB
+  actor         AppPrincipal? @relation(fields: [actorUserId], references: [userId], onDelete: SetNull)
+
+  @@index([actorUserId, occurredAt(sort: Desc)])
+  @@index([resourceType, resourceId, occurredAt(sort: Desc)])
+  @@map("audit_events")
+}
+
+model MoodEntry {
+  id              String   @id @default(uuid()) @db.Uuid
+  memberId        String   @map("member_id") @db.Text
+  moodCode        String   @map("mood_code") @db.Text
+  scaleCode       String?  @map("scale_code") @db.Text
+  scaleValue      Decimal? @map("scale_value") @db.Decimal(6, 2)
+  noteCiphertext  Bytes?   @map("note_ciphertext") @db.ByteA
+  keyVersion      String?  @map("key_version") @db.Text
+  sourceType      String   @default("member") @map("source_type") @db.Text
+  recordedAt      DateTime @map("recorded_at") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([memberId, recordedAt(sort: Desc)])
+  @@map("mood_entries")
+}
+
+model JournalEntry {
+  id              String    @id @default(uuid()) @db.Uuid
+  memberId        String    @map("member_id") @db.Text
+  titleCiphertext Bytes?    @map("title_ciphertext") @db.ByteA
+  bodyCiphertext  Bytes     @map("body_ciphertext") @db.ByteA
+  keyVersion      String    @map("key_version") @db.Text
+  visibility      String    @default("private") @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  @@index([memberId, createdAt(sort: Desc)])
+  @@map("journal_entries")
+}
+
+model WellbeingGoal {
+  id             String        @id @default(uuid()) @db.Uuid
+  memberId       String        @map("member_id") @db.Text
+  goalCiphertext Bytes         @map("goal_ciphertext") @db.ByteA
+  keyVersion     String        @map("key_version") @db.Text
+  sourceType     String        @default("member") @map("source_type") @db.Text
+  status         String        @default("active") @db.Text
+  targetDate     DateTime?     @map("target_date") @db.Date
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  closedAt       DateTime?     @map("closed_at") @db.Timestamptz(6)
+  checkins       GoalCheckin[]
+
+  @@index([memberId, status, createdAt(sort: Desc)])
+  @@map("wellbeing_goals")
+}
+
+model GoalCheckin {
+  id            String       @id @default(uuid()) @db.Uuid
+  goalId        String       @map("goal_id") @db.Uuid
+  memberId      String       @map("member_id") @db.Text
+  checkinState  String       @map("checkin_state") @db.Text
+  noteCiphertext Bytes?      @map("note_ciphertext") @db.ByteA
+  keyVersion    String?      @map("key_version") @db.Text
+  reportedAt    DateTime     @default(now()) @map("reported_at") @db.Timestamptz(6)
+  goal          WellbeingGoal @relation(fields: [goalId], references: [id], onDelete: Restrict)
+
+  @@index([goalId, reportedAt(sort: Desc)])
+  @@index([memberId, reportedAt(sort: Desc)])
+  @@map("goal_checkins")
+}
+
+model WellbeingSession {
+  id         String            @id @default(uuid()) @db.Uuid
+  memberId   String            @map("member_id") @db.Text
+  sessionType String           @map("session_type") @db.Text
+  status     String            @default("active") @db.Text
+  locale     String            @db.Text
+  consentId  String?           @map("consent_id") @db.Uuid
+  agentVersion String?         @map("agent_version") @db.Text
+  startedAt  DateTime          @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt    DateTime?         @map("ended_at") @db.Timestamptz(6)
+  messages   WellbeingMessage[]
+
+  @@index([memberId, startedAt(sort: Desc)])
+  @@map("wellbeing_sessions")
+}
+
+model WellbeingSummary {
+  id              String   @id @default(uuid()) @db.Uuid
+  intakeId        String   @map("intake_id") @db.Uuid
+  memberId        String   @map("member_id") @db.Text
+  versionNo       Int      @map("version_no")
+  summaryCiphertext Bytes @map("summary_ciphertext") @db.ByteA
+  keyVersion      String   @map("key_version") @db.Text
+  generatedBy     String   @map("generated_by") @db.Text
+  agentVersion    String?  @map("agent_version") @db.Text
+  reviewState     String   @default("pending") @map("review_state") @db.Text
+  reviewedAt      DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([intakeId, versionNo])
+  @@index([memberId, createdAt(sort: Desc)])
+  @@map("wellbeing_summaries")
+}
+
+model SupportRecommendation {
+  id                 String    @id @default(uuid()) @db.Uuid
+  intakeId           String    @map("intake_id") @db.Uuid
+  memberId           String    @map("member_id") @db.Text
+  supportLevel       String    @map("support_level") @db.Text
+  optionCode         String    @map("option_code") @db.Text
+  availabilityState  String    @map("availability_state") @db.Text
+  rationaleCiphertext Bytes?   @map("rationale_ciphertext") @db.ByteA
+  keyVersion         String?   @map("key_version") @db.Text
+  selectedAt         DateTime? @map("selected_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([memberId, createdAt(sort: Desc)])
+  @@map("support_recommendations")
+}
+
+model ExerciseSession {
+  id                  String    @id @default(uuid()) @db.Uuid
+  contentId           String    @map("content_id") @db.Uuid
+  memberId            String    @map("member_id") @db.Text
+  contentVersion      Int       @map("content_version")
+  progressState       String    @default("started") @map("progress_state") @db.Text
+  reflectionCiphertext Bytes?   @map("reflection_ciphertext") @db.ByteA
+  keyVersion          String?   @map("key_version") @db.Text
+  startedAt           DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt         DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([memberId, startedAt(sort: Desc)])
+  @@map("exercise_sessions")
+}
+
+model WellbeingReflection {
+  id             String    @id @default(uuid()) @db.Uuid
+  memberId       String    @map("member_id") @db.Text
+  reflectionType String    @map("reflection_type") @db.Text
+  promptVersion  String    @map("prompt_version") @db.Text
+  locale         String    @db.Text
+  status         String    @default("in_progress") @db.Text
+  startedAt      DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  sourceType     String    @default("member") @map("source_type") @db.Text
+
+  @@index([memberId, startedAt(sort: Desc)])
+  @@map("wellbeing_reflections")
+}
+
+model WellbeingActivity {
+  id                  String    @id @default(uuid()) @db.Uuid
+  memberId            String    @map("member_id") @db.Text
+  contentId           String    @map("content_id") @db.Uuid
+  contentVersion      Int       @map("content_version")
+  status              String    @default("started") @db.Text
+  reflectionCiphertext Bytes?   @map("reflection_ciphertext") @db.ByteA
+  keyVersion          String?   @map("key_version") @db.Text
+  startedAt           DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt         DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([memberId, startedAt(sort: Desc)])
+  @@map("wellbeing_activities")
+}
+
+model WellbeingMessage {
+  id               String          @id @default(uuid()) @db.Uuid
+  sessionId        String          @map("session_id") @db.Uuid
+  sequenceNo       Int             @map("sequence_no")
+  speakerType      String          @map("speaker_type") @db.Text
+  contentCiphertext Bytes          @map("content_ciphertext") @db.ByteA
+  keyVersion       String          @map("key_version") @db.Text
+  deliveryState    String          @default("stored") @map("delivery_state") @db.Text
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt        DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  session          WellbeingSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, sequenceNo])
+  @@index([sessionId, createdAt])
+  @@map("wellbeing_messages")
+}
+
+model SelfHelpContent {
+  id             String    @id @default(uuid()) @db.Uuid
+  contentCode    String    @unique @map("content_code") @db.Text
+  contentType    String    @map("content_type") @db.Text
+  title          String    @db.Text
+  locale         String    @db.Text
+  contentVersion Int       @map("content_version")
+  body           Json      @db.JsonB
+  reviewState    String    @map("review_state") @db.Text
+  authorUserId   String?   @map("author_user_id") @db.Text
+  reviewerUserId String?   @map("reviewer_user_id") @db.Text
+  effectiveFrom  DateTime? @map("effective_from") @db.Timestamptz(6)
+  effectiveTo    DateTime? @map("effective_to") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([reviewState, locale, contentType])
+  @@map("self_help_content")
+}
+
+model ListenerProfile {
+  id                   String   @id @default(uuid()) @db.Uuid
+  userId               String   @unique @map("user_id") @db.Text
+  applicationState     String   @default("pending") @map("application_state") @db.Text
+  eligibilityState     String   @default("ineligible") @map("eligibility_state") @db.Text
+  approvedAt           DateTime? @map("approved_at") @db.Timestamptz(6)
+  eligibilityExpiresAt DateTime? @map("eligibility_expires_at") @db.Timestamptz(6)
+  capacityLimit        Int      @default(1) @map("capacity_limit") @db.SmallInt
+  profileLanguages     String[] @default([]) @map("profile_languages")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("listener_profiles")
+}
+
+model ListenerTrainingRecord {
+  id              String    @id @default(uuid()) @db.Uuid
+  listenerId      String    @map("listener_id") @db.Uuid
+  moduleCode      String    @map("module_code") @db.Text
+  moduleVersion   String    @map("module_version") @db.Text
+  completionState String    @map("completion_state") @db.Text
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(6)
+  reviewedByUserId String?  @map("reviewed_by_user_id") @db.Text
+
+  @@index([listenerId, completionState, expiresAt])
+  @@map("listener_training_records")
+}
+
+model ListenerSupervisorAssignment {
+  id                String    @id @default(uuid()) @db.Uuid
+  listenerId        String    @map("listener_id") @db.Uuid
+  supervisorUserId  String    @map("supervisor_user_id") @db.Text
+  assignmentState   String    @default("active") @map("assignment_state") @db.Text
+  assignedByUserId  String    @map("assigned_by_user_id") @db.Text
+  assignedAt        DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  endedAt           DateTime? @map("ended_at") @db.Timestamptz(6)
+  reasonCode        String    @map("reason_code") @db.Text
+
+  @@index([listenerId, assignmentState])
+  @@index([supervisorUserId, assignmentState])
+  @@map("listener_supervisor_assignments")
+}
+
+model ListenerAvailability {
+  id                 String   @id @default(uuid()) @db.Uuid
+  listenerId         String   @map("listener_id") @db.Uuid
+  startsAt           DateTime @map("starts_at") @db.Timestamptz(6)
+  endsAt             DateTime @map("ends_at") @db.Timestamptz(6)
+  availabilityState  String   @map("availability_state") @db.Text
+  timezone           String   @db.Text
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([listenerId, startsAt, endsAt])
+  @@map("listener_availability")
+}
+
+model ListenerMatchRequest {
+  id                 String    @id @default(uuid()) @db.Uuid
+  memberId           String    @map("member_id") @db.Text
+  requestState       String    @default("queued") @map("request_state") @db.Text
+  preferredLanguages String[]  @default([]) @map("preferred_languages")
+  preferences        Json      @default("{}") @db.JsonB
+  sharedSummaryId    String?   @map("shared_summary_id") @db.Uuid
+  consentId          String?   @map("consent_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt          DateTime? @map("expires_at") @db.Timestamptz(6)
+  closedAt           DateTime? @map("closed_at") @db.Timestamptz(6)
+
+  @@index([memberId, createdAt(sort: Desc)])
+  @@index([requestState, createdAt])
+  @@map("listener_match_requests")
+}
+
+model ListenerMatch {
+  id              String    @id @default(uuid()) @db.Uuid
+  requestId       String    @map("request_id") @db.Uuid
+  listenerId      String    @map("listener_id") @db.Uuid
+  matchState      String    @default("offered") @map("match_state") @db.Text
+  offeredAt       DateTime  @default(now()) @map("offered_at") @db.Timestamptz(6)
+  acceptedAt      DateTime? @map("accepted_at") @db.Timestamptz(6)
+  endedAt         DateTime? @map("ended_at") @db.Timestamptz(6)
+  endReasonCode   String?   @map("end_reason_code") @db.Text
+  matchRationale  Json?     @map("match_rationale") @db.JsonB
+
+  @@index([requestId, matchState])
+  @@index([listenerId, matchState])
+  @@map("listener_matches")
+}
+
+model PeerConversation {
+  id                String       @id @default(uuid()) @db.Uuid
+  matchId           String       @unique @map("match_id") @db.Uuid
+  memberId          String       @map("member_id") @db.Text
+  listenerId        String       @map("listener_id") @db.Uuid
+  channel           String       @db.Text
+  conversationState String       @default("open") @map("conversation_state") @db.Text
+  startedAt         DateTime     @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt           DateTime?    @map("ended_at") @db.Timestamptz(6)
+  closedByUserId    String?      @map("closed_by_user_id") @db.Text
+  messages          PeerMessage[]
+
+  @@index([memberId, startedAt(sort: Desc)])
+  @@index([listenerId, startedAt(sort: Desc)])
+  @@map("peer_conversations")
+}
+
+model PeerMessage {
+  id               String          @id @default(uuid()) @db.Uuid
+  conversationId   String          @map("conversation_id") @db.Uuid
+  sequenceNo       BigInt          @map("sequence_no")
+  senderUserId     String          @map("sender_user_id") @db.Text
+  contentCiphertext Bytes          @map("content_ciphertext") @db.ByteA
+  keyVersion       String          @map("key_version") @db.Text
+  deliveryState    String          @default("queued") @map("delivery_state") @db.Text
+  sentAt           DateTime        @default(now()) @map("sent_at") @db.Timestamptz(6)
+  deliveredAt      DateTime?       @map("delivered_at") @db.Timestamptz(6)
+  conversation     PeerConversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+
+  @@unique([conversationId, sequenceNo])
+  @@index([conversationId, sentAt])
+  @@map("peer_messages")
+}
+
+model ConductReport {
+  id                String    @id @default(uuid()) @db.Uuid
+  conversationId    String    @map("conversation_id") @db.Uuid
+  reporterUserId    String    @map("reporter_user_id") @db.Text
+  reportedUserId    String?   @map("reported_user_id") @db.Text
+  categoryCode      String    @map("category_code") @db.Text
+  detailsCiphertext Bytes?    @map("details_ciphertext") @db.ByteA
+  keyVersion        String?   @map("key_version") @db.Text
+  reportState       String    @default("open") @map("report_state") @db.Text
+  assignedToUserId  String?   @map("assigned_to_user_id") @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt        DateTime? @map("resolved_at") @db.Timestamptz(6)
+
+  @@index([reportState, createdAt])
+  @@index([reporterUserId, createdAt(sort: Desc)])
+  @@map("conduct_reports")
+}
+
+model ListenerFeedback {
+  id                 String    @id @default(uuid()) @db.Uuid
+  conversationId     String    @map("conversation_id") @db.Uuid
+  memberId           String    @map("member_id") @db.Text
+  rating             Int?      @db.SmallInt
+  feedbackCiphertext Bytes?    @map("feedback_ciphertext") @db.ByteA
+  keyVersion         String?   @map("key_version") @db.Text
+  reviewState        String    @default("received") @map("review_state") @db.Text
+  submittedAt        DateTime  @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  reviewedByUserId   String?   @map("reviewed_by_user_id") @db.Text
+
+  @@unique([conversationId, memberId])
+  @@index([reviewState, submittedAt])
+  @@map("listener_feedback")
+}
+
+model SafetyCase {
+  id                     String    @id @default(uuid()) @db.Uuid
+  memberId               String?   @map("member_id") @db.Text
+  sourceType             String    @map("source_type") @db.Text
+  sourceRecordId         String?   @map("source_record_id") @db.Uuid
+  triggerCode            String    @map("trigger_code") @db.Text
+  policyVersion          String    @map("policy_version") @db.Text
+  caseState              String    @default("new") @map("case_state") @db.Text
+  priorityCode           String    @map("priority_code") @db.Text
+  jurisdiction           String?   @db.Text
+  assignedResponderUserId String?  @map("assigned_responder_user_id") @db.Text
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  acknowledgedAt         DateTime? @map("acknowledged_at") @db.Timestamptz(6)
+  closedAt               DateTime? @map("closed_at") @db.Timestamptz(6)
+  resolutionCode         String?   @map("resolution_code") @db.Text
+
+  @@index([caseState, priorityCode, createdAt])
+  @@index([memberId, createdAt(sort: Desc)])
+  @@map("safety_cases")
+}
+
+model SafetyCaseAction {
+  id               String   @id @default(uuid()) @db.Uuid
+  caseId           String   @map("case_id") @db.Uuid
+  actorUserId      String?  @map("actor_user_id") @db.Text
+  actionType       String   @map("action_type") @db.Text
+  actionState      String   @map("action_state") @db.Text
+  resourceId       String?  @map("resource_id") @db.Uuid
+  detailsCiphertext Bytes?  @map("details_ciphertext") @db.ByteA
+  keyVersion       String?  @map("key_version") @db.Text
+  occurredAt       DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  @@index([caseId, occurredAt])
+  @@map("safety_case_actions")
+}
+
+model CrisisResource {
+  id               String    @id @default(uuid()) @db.Uuid
+  regionCode       String    @map("region_code") @db.Text
+  locale           String    @db.Text
+  resourceType     String    @map("resource_type") @db.Text
+  displayName      String    @map("display_name") @db.Text
+  contactDetails   Json      @map("contact_details") @db.JsonB
+  sourceUrl        String?   @map("source_url") @db.Text
+  verificationState String   @default("pending") @map("verification_state") @db.Text
+  verifiedByUserId String?   @map("verified_by_user_id") @db.Text
+  lastVerifiedAt   DateTime? @map("last_verified_at") @db.Timestamptz(6)
+  effectiveFrom    DateTime? @map("effective_from") @db.Timestamptz(6)
+  effectiveTo      DateTime? @map("effective_to") @db.Timestamptz(6)
+
+  @@index([regionCode, locale, verificationState])
+  @@map("crisis_resources")
+}
+
+model Followup {
+  id                String    @id @default(uuid()) @db.Uuid
+  memberId          String    @map("member_id") @db.Text
+  sourceType        String    @map("source_type") @db.Text
+  sourceRecordId    String?   @map("source_record_id") @db.Uuid
+  scheduledAt       DateTime  @map("scheduled_at") @db.Timestamptz(6)
+  followupState     String    @default("scheduled") @map("followup_state") @db.Text
+  responseCiphertext Bytes?   @map("response_ciphertext") @db.ByteA
+  keyVersion        String?   @map("key_version") @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([memberId, scheduledAt])
+  @@map("followups")
+}
+
+model Notification {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @map("user_id") @db.Text
+  notificationType  String    @map("notification_type") @db.Text
+  channel           String    @db.Text
+  payloadReference  String?   @map("payload_reference") @db.Text
+  scheduledAt       DateTime  @map("scheduled_at") @db.Timestamptz(6)
+  sentAt            DateTime? @map("sent_at") @db.Timestamptz(6)
+  deliveryState     String    @default("queued") @map("delivery_state") @db.Text
+  attemptCount      Int       @default(0) @map("attempt_count") @db.SmallInt
+  deduplicationKey  String?   @unique @map("deduplication_key") @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([deliveryState, scheduledAt])
+  @@map("notifications")
+}
+
+model AiProcessingRun {
+  id              String    @id @default(uuid()) @db.Uuid
+  memberId        String?   @map("member_id") @db.Text
+  purposeCode     String    @map("purpose_code") @db.Text
+  sourceType      String    @map("source_type") @db.Text
+  sourceRecordId  String?   @map("source_record_id") @db.Uuid
+  consentId       String?   @map("consent_id") @db.Uuid
+  modelVersion    String    @map("model_version") @db.Text
+  policyVersion   String    @map("policy_version") @db.Text
+  runState        String    @default("started") @map("run_state") @db.Text
+  startedAt       DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
+  errorCode       String?   @map("error_code") @db.Text
+
+  @@index([memberId, startedAt(sort: Desc)])
+  @@index([runState, startedAt])
+  @@map("ai_processing_runs")
+}
+
+model WorkflowDefinition {
+  id           String   @id @default(uuid()) @db.Uuid
+  processCode  String   @unique @map("process_code") @db.Text
+  version      String   @db.Text
+  status       String   @default("draft") @db.Text
+  policyVersion String  @map("policy_version") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([processCode, version])
+  @@map("workflow_definitions")
+}
+
+model WorkflowExecution {
+  id                String    @id @default(uuid()) @db.Uuid
+  definitionId      String    @map("definition_id") @db.Uuid
+  temporalWorkflowId String   @unique @map("temporal_workflow_id") @db.Text
+  subjectType       String    @map("subject_type") @db.Text
+  subjectId         String    @map("subject_id") @db.Text
+  status            String    @default("running") @db.Text
+  startedAt         DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  closedAt          DateTime? @map("closed_at") @db.Timestamptz(6)
+  correlationId     String?   @map("correlation_id") @db.Uuid
+
+  @@index([subjectType, subjectId, startedAt(sort: Desc)])
+  @@index([status, startedAt])
+  @@map("workflow_executions")
+}
+
+model WorkflowTask {
+  id             String    @id @default(uuid()) @db.Uuid
+  executionId    String    @map("execution_id") @db.Uuid
+  taskCode       String    @map("task_code") @db.Text
+  assigneeUserId String?   @map("assignee_user_id") @db.Text
+  requiredRole   String    @map("required_role") @db.Text
+  status         String    @default("queued") @db.Text
+  dueAt          DateTime? @map("due_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  reasonCode     String?   @map("reason_code") @db.Text
+
+  @@index([requiredRole, status, dueAt])
+  @@index([assigneeUserId, status])
+  @@map("workflow_tasks")
+}
+
+model WorkflowStep {
+  id           String    @id @default(uuid()) @db.Uuid
+  executionId  String    @map("execution_id") @db.Uuid
+  stepCode     String    @map("step_code") @db.Text
+  attemptNo    Int       @default(1) @map("attempt_no")
+  status       String    @default("pending") @db.Text
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+  failureCode  String?   @map("failure_code") @db.Text
+
+  @@unique([executionId, stepCode, attemptNo])
+  @@index([executionId, status])
+  @@map("workflow_steps")
+}
+
+model WorkflowTimer {
+  id            String    @id @default(uuid()) @db.Uuid
+  executionId   String    @map("execution_id") @db.Uuid
+  timerCode     String    @map("timer_code") @db.Text
+  dueAt         DateTime  @map("due_at") @db.Timestamptz(6)
+  status        String    @default("scheduled") @db.Text
+  firedAt       DateTime? @map("fired_at") @db.Timestamptz(6)
+  policyVersion String    @map("policy_version") @db.Text
+
+  @@index([status, dueAt])
+  @@map("workflow_timers")
+}
+
+model WorkflowEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  executionId     String   @map("execution_id") @db.Uuid
+  eventCode       String   @map("event_code") @db.Text
+  eventVersion    Int      @map("event_version")
+  occurredAt      DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  actorType       String   @map("actor_type") @db.Text
+  actorId         String?  @map("actor_id") @db.Text
+  payloadMetadata Json     @default("{}") @map("payload_metadata") @db.JsonB
+
+  @@index([executionId, occurredAt])
+  @@map("workflow_events")
+}
+
+model HumanApproval {
+  id                 String   @id @default(uuid()) @db.Uuid
+  executionId        String   @map("execution_id") @db.Uuid
+  taskId             String   @map("task_id") @db.Uuid
+  approverUserId     String   @map("approver_user_id") @db.Text
+  requiredRole       String   @map("required_role") @db.Text
+  decision           String   @db.Text
+  decisionReasonCode String?  @map("decision_reason_code") @db.Text
+  decidedAt          DateTime @default(now()) @map("decided_at") @db.Timestamptz(6)
+  policyVersion      String   @map("policy_version") @db.Text
+
+  @@index([executionId, decidedAt])
+  @@map("human_approvals")
+}
+
+model WorkflowCompensation {
+  id              String    @id @default(uuid()) @db.Uuid
+  executionId     String    @map("execution_id") @db.Uuid
+  stepId          String    @map("step_id") @db.Uuid
+  compensationCode String  @map("compensation_code") @db.Text
+  status          String    @default("pending") @db.Text
+  idempotencyKey  String    @unique @map("idempotency_key") @db.Text
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
+  failureCode     String?   @map("failure_code") @db.Text
+
+  @@map("workflow_compensations")
+}
+
+model AgentToolInvocation {
+  id             String    @id @default(uuid()) @db.Uuid
+  agentRunId     String    @map("agent_run_id") @db.Uuid
+  toolCode       String    @map("tool_code") @db.Text
+  toolVersion    String    @map("tool_version") @db.Text
+  scope          String[]  @default([])
+  inputDigest    Bytes     @map("input_digest") @db.ByteA
+  outputDigest   Bytes?    @map("output_digest") @db.ByteA
+  status         String    @default("requested") @db.Text
+  startedAt      DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  correlationId  String?   @map("correlation_id") @db.Uuid
+
+  @@index([agentRunId, startedAt])
+  @@map("agent_tool_invocations")
+}
+
+model OutboxEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  eventType       String    @map("event_type") @db.Text
+  eventVersion    Int       @map("event_version")
+  aggregateType   String    @map("aggregate_type") @db.Text
+  aggregateId     String    @map("aggregate_id") @db.Text
+  payload         Json      @db.JsonB
+  occurredAt      DateTime  @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  publishedAt     DateTime? @map("published_at") @db.Timestamptz(6)
+  attemptCount    Int       @default(0) @map("attempt_count")
+  nextAttemptAt  DateTime? @map("next_attempt_at") @db.Timestamptz(6)
+  lastErrorCode  String?   @map("last_error_code") @db.Text
+
+  @@index([publishedAt, nextAttemptAt, occurredAt])
+  @@map("outbox_events")
+}
+
+model EventConsumerReceipt {
+  id              String   @id @default(uuid()) @db.Uuid
+  consumerCode    String   @map("consumer_code") @db.Text
+  eventId         String   @map("event_id") @db.Uuid
+  eventVersion    Int      @map("event_version")
+  processedAt     DateTime @default(now()) @map("processed_at") @db.Timestamptz(6)
+  outcomeCode     String   @map("outcome_code") @db.Text
+
+  @@unique([consumerCode, eventId])
+  @@map("event_consumer_receipts")
+}

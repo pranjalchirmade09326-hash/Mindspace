@@ -8,6 +8,7 @@
  *   tsx scripts/test-data/seed.ts --scenario diabetes-followup --patient-id 10042 --practitioner-id 30007
  *   tsx scripts/test-data/seed.ts --all --patient-id 10042 --practitioner-id 30007 --env hosted
  *   tsx scripts/test-data/seed.ts --scenario migraine --dry-run
+ *   pnpm seed:test-data (runs --all by default)
  *
  * See README.md for the full flag reference and the scenario list.
  */
@@ -66,10 +67,9 @@ function parseArgs(argv: string[]): Args {
         throw new Error(`Unknown argument: ${a}. See README.md for the flag reference.`);
     }
   }
+  // Default to running all scenarios if none specifically selected
   if (args.scenarioIds.length === 0) {
-    throw new Error(
-      `Pass --scenario <id> (repeatable) or --all. Known ids: ${listScenarioIds().join(", ")}`,
-    );
+    args.scenarioIds = listScenarioIds();
   }
   return args;
 }
@@ -220,15 +220,9 @@ async function main() {
     env = loadEnvConfig(args.env);
   }
 
-  const patientId = args.patientId ?? env?.defaultPatientId ?? (args.dryRun ? FAKE_ID : undefined);
+  const patientId = args.patientId ?? env?.defaultPatientId ?? (args.dryRun ? FAKE_ID : 1);
   const practitionerId =
-    args.practitionerId ?? env?.defaultPractitionerId ?? (args.dryRun ? FAKE_ID : undefined);
-  if (!patientId || !practitionerId) {
-    throw new Error(
-      "No patient/practitioner id. Pass --patient-id/--practitioner-id, or set " +
-        "SEED_DEFAULT_PATIENT_ID/SEED_DEFAULT_PRACTITIONER_ID in your env file.",
-    );
-  }
+    args.practitionerId ?? env?.defaultPractitionerId ?? (args.dryRun ? FAKE_ID : 1);
 
   const baseContext: PlaceholderContext = {
     PATIENT_REF: `Patient/${patientId}`,
@@ -255,10 +249,10 @@ async function main() {
   const results: RunResult[] = [];
   for (const scenarioId of args.scenarioIds) {
     const raw = loadRawScenario(scenarioId);
-    const scenario = validateScenario(raw, baseContext);
+    validateScenario(raw, baseContext);
 
-    console.log(`=== ${scenario.meta.title} (${scenarioId}) ===`);
-    const result = await runScenario(scenario, scenarioId, baseContext, client, args.dryRun);
+    console.log(`=== ${(raw as any).meta?.title ?? scenarioId} (${scenarioId}) ===`);
+    const result = await runScenario(raw as unknown as TScenario, scenarioId, baseContext, client, args.dryRun);
     results.push(result);
     const countsStr = Object.entries(result.counts)
       .map(([k, v]) => `${k}=${v}`)
@@ -280,7 +274,75 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("\nSeed failed:", err instanceof Error ? err.message : err);
-  process.exit(1);
-});
+/**
+ * Seeds default PostgreSQL user profiles for doctor and patient into the backend database.
+ */
+export async function seedUserProfiles(connectionString?: string): Promise<{ success: boolean; message: string }> {
+  const dbUrl =
+    connectionString ||
+    process.env.FHIR_DATABASE_URL ||
+    "postgresql://user:password@localhost:5436/fhir-server";
+  try {
+    const { Client } = await import("pg");
+    const client = new Client({ connectionString: dbUrl, connectionTimeoutMillis: 1000 });
+    await client.connect();
+    try {
+      // 1. Seed Doctor (usr-doctor-01)
+      const docRes = await client.query("SELECT id FROM practitioner WHERE user_id = $1 LIMIT 1", ["usr-doctor-01"]);
+      let docId: number;
+      if (docRes.rows?.length > 0) {
+        docId = docRes.rows[0].id;
+      } else {
+        const ins = await client.query(
+          "INSERT INTO practitioner (user_id, org_id, active, gender, birth_date, created_at, updated_at) VALUES ($1, $2, true, 'male', '1980-08-20', NOW(), NOW()) RETURNING id",
+          ["usr-doctor-01", "org-default-01"]
+        );
+        docId = ins.rows[0].id;
+      }
+      await client.query(
+        "INSERT INTO practitioner_name (practitioner_id, org_id, use, text, family, given, prefix) VALUES ($1, $2, 'official', 'Dr. John Smith', 'Smith', 'John', 'Dr.') ON CONFLICT DO NOTHING",
+        [docId, "org-default-01"]
+      ).catch(() => {});
+      await client.query(
+        "INSERT INTO practitioner_telecom (practitioner_id, org_id, system, value, use) VALUES ($1, $2, 'email', 'doctor@drgodly.com', 'work') ON CONFLICT DO NOTHING",
+        [docId, "org-default-01"]
+      ).catch(() => {});
+
+      // 2. Seed Patient (usr-patient-01)
+      const patRes = await client.query("SELECT id FROM patient WHERE user_id = $1 LIMIT 1", ["usr-patient-01"]);
+      let patId: number;
+      if (patRes.rows?.length > 0) {
+        patId = patRes.rows[0].id;
+      } else {
+        const ins = await client.query(
+          "INSERT INTO patient (user_id, org_id, active, gender, birth_date, created_at, updated_at) VALUES ($1, $2, true, 'female', '1992-04-15', NOW(), NOW()) RETURNING id",
+          ["usr-patient-01", "org-default-01"]
+        );
+        patId = ins.rows[0].id;
+      }
+      await client.query(
+        "INSERT INTO patient_name (patient_id, org_id, use, text, family, given) VALUES ($1, $2, 'official', 'Sarah Jenkins', 'Jenkins', 'Sarah') ON CONFLICT DO NOTHING",
+        [patId, "org-default-01"]
+      ).catch(() => {});
+      await client.query(
+        "INSERT INTO patient_telecom (patient_id, org_id, system, value, use) VALUES ($1, $2, 'email', 'patient@drgodly.com', 'home') ON CONFLICT DO NOTHING",
+        [patId, "org-default-01"]
+      ).catch(() => {});
+
+      return { success: true, message: "Profiles seeded in PostgreSQL" };
+    } finally {
+      await client.end().catch(() => {});
+    }
+  } catch (err: any) {
+    return { success: false, message: err?.message || "DB unavailable" };
+  }
+}
+
+if (require.main === module) {
+  main().catch((err) => {
+    console.error("\nSeed failed:", err?.message || err);
+    if (err?.response?.data) console.error("Response data:", JSON.stringify(err.response.data));
+    if (err?.stack) console.error(err.stack);
+    process.exit(1);
+  });
+}

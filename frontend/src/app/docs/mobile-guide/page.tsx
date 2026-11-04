@@ -23,7 +23,7 @@ export default function MobileGuideOverviewPage() {
   return (
     <div className="space-y-8">
       <div className="space-y-3">
-        <h1 className="text-2xl font-semibold">Drgodly Mobile Integration Guide</h1>
+        <h1 className="text-2xl font-semibold">MindSpace Mobile Integration Guide</h1>
         <p className="text-sm text-muted-foreground">
           Everything a mobile app needs to replicate this web app&apos;s patient and doctor experiences —
           FHIR clinical data, the FHIR-staging review workflow, the AI agents, and this app&apos;s own Mobile

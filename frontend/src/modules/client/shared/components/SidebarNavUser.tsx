@@ -11,29 +11,39 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton, useSidebar } from "@/components/ui/sidebar";
 import { authClient } from "@/modules/client/auth/betterauth/auth-client";
-import { ThemeSwitcher } from "@/theme/ThemeSwitcher";
 import { ChevronsUpDown, LogOut, Settings2 } from "lucide-react";
 import { Link } from "@/i18n/navigation";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-type TUser = {
+export type TUser = {
   name: string;
   email: string;
+  role?: string | null;
   image?: string | null;
   username?: string | null;
 };
 
-export function SidebarNavUser({ user }: { user: TUser }) {
-  const { name, email, image, username } = user;
+export type SidebarNavUserProps = {
+  user?: TUser;
+  name?: string;
+  email?: string;
+  role?: string | null;
+  image?: string | null;
+  username?: string | null;
+};
+
+export function SidebarNavUser(props: SidebarNavUserProps) {
+  const user = props.user || (props as TUser);
+  const { name = "", email = "", image, username, role } = user;
   const { state } = useSidebar();
 
   async function handleLogout() {
-    const { data, error } = await authClient.signOut();
-    if (!data?.success || !data) {
-      toast.error("Something went wrong!", { description: error?.message });
-      return;
+    try {
+      await authClient.signOut();
+    } catch {
+      // ignore
     }
+    await fetch("/api/auth/dev-logout", { method: "POST" });
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
     window.location.href = "/";
@@ -45,6 +55,8 @@ export function SidebarNavUser({ user }: { user: TUser }) {
     .join("")
     .toUpperCase()
     .slice(0, 2);
+
+  const displayRole = role || "patient";
 
   return (
     <DropdownMenu>
@@ -63,8 +75,13 @@ export function SidebarNavUser({ user }: { user: TUser }) {
               {initials}
             </AvatarFallback>
           </Avatar>
-          <div className="grid flex-1 text-start text-sm leading-tight">
-            <span className="truncate font-semibold">{name}</span>
+          <div className="grid flex-1 text-start text-sm leading-tight min-w-0">
+            <div className="flex items-center justify-between gap-1">
+              <span className="truncate font-semibold">{name}</span>
+              <span className="badge text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground capitalize font-medium shrink-0">
+                {displayRole}
+              </span>
+            </div>
             <span className="truncate text-xs text-muted-foreground">
               {email}
             </span>
@@ -88,25 +105,26 @@ export function SidebarNavUser({ user }: { user: TUser }) {
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 space-y-0.5">
-              <p className="truncate text-sm font-semibold text-foreground">
-                {name}
-                {username ? (
-                  <span className="font-normal text-muted-foreground">
-                    {" "}
-                    @{username}
-                  </span>
-                ) : null}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {name}
+                  {username ? (
+                    <span className="font-normal text-muted-foreground">
+                      {" "}
+                      @{username}
+                    </span>
+                  ) : null}
+                </p>
+                <span className="badge text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground capitalize font-medium">
+                  {displayRole}
+                </span>
+              </div>
               <p className="truncate text-xs text-muted-foreground">{email}</p>
             </div>
           </div>
         </DropdownMenuLabel>
 
         <DropdownMenuSeparator />
-
-        {/* <DropdownMenuItem className="p-0 cursor-pointer" onSelect={(e) => e.preventDefault()}>
-          <ThemeSwitcher className="w-full justify-start px-2 rounded-sm" />
-        </DropdownMenuItem> */}
 
         <DropdownMenuItem asChild className="cursor-pointer">
           <Link

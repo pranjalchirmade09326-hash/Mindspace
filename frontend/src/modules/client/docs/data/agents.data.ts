@@ -29,7 +29,7 @@ export const AGENTS: AgentDoc[] = [
     slug: "intake",
     title: "Intake Agent",
     envVar: "INTAKE_AGENT_URL",
-    exampleUrl: "https://agents.drgodly.com/api/agent/intake",
+    exampleUrl: "https://agents.mindspace.app/api/agent/intake",
     description: "Conversational pre-appointment intake — gathers symptoms from the patient before they book a doctor.",
     usage: { patient: "Patient intake chat, before booking an appointment." },
     method: "POST",
@@ -49,7 +49,7 @@ export const AGENTS: AgentDoc[] = [
     slug: "consultation",
     title: "Consultation Agent",
     envVar: "CONSULTATION_AGENT_URL",
-    exampleUrl: "https://agents.drgodly.com/api/agent/consult",
+    exampleUrl: "https://agents.mindspace.app/api/agent/consult",
     description: "Byte-identical contract to the Intake Agent — a text-based AI consultation the patient can have without booking a doctor at all.",
     usage: { patient: "Patient direct-to-AI text consultation chat." },
     method: "POST",
@@ -67,7 +67,7 @@ export const AGENTS: AgentDoc[] = [
     slug: "assessment-plan",
     title: "Assessment Plan Agent",
     envVar: "ASSESSMENT_PLAN_AGENT_URL",
-    exampleUrl: "https://agents.drgodly.com/api/agent/assessment",
+    exampleUrl: "https://agents.mindspace.app/api/agent/assessment",
     description:
       "Turns a finished intake/consultation transcript into a structured clinical report (risk level, differential diagnosis). " +
       "Called once, at the end of a conversation — not a chat itself.",
@@ -86,7 +86,7 @@ export const AGENTS: AgentDoc[] = [
     slug: "clinical-extraction",
     title: "Clinical Extraction Agent",
     envVar: "AGENT_CLINICAL_API_URL",
-    exampleUrl: "https://agents.drgodly.com/api/agent/clinical-extraction",
+    exampleUrl: "https://agents.mindspace.app/api/agent/clinical-extraction",
     description: "Converts a doctor's SOAP note into structured FHIR-ready resource suggestions (conditions, observations, medications, orders).",
     usage: { doctor: "Clinical Records workspace's \"re-extract\" action, after editing the SOAP note." },
     method: "POST",
@@ -104,7 +104,7 @@ export const AGENTS: AgentDoc[] = [
     slug: "full-report",
     title: "Full Report Agent",
     envVar: "ASSESSMENT_PLAN_AGENT_URL + DOCTOR_REPORT_AGENT_URL",
-    exampleUrl: "https://agents.drgodly.com/api/agent/consultation-workflow",
+    exampleUrl: "https://agents.mindspace.app/api/agent/consultation-workflow",
     description:
       "Merges a SOAP report and an assessment plan into one final consultation report. Our Next.js proxy calls two upstream " +
       "agents in parallel and merges their results — a mobile client replicating this directly needs to call both agents " +
@@ -124,7 +124,7 @@ export const AGENTS: AgentDoc[] = [
     slug: "document-chat",
     title: "Document Chat Agent",
     envVar: "DOCUMENT_AGENT_API_URL",
-    exampleUrl: "https://agents.drgodly.com/api/agent/document",
+    exampleUrl: "https://agents.mindspace.app/api/agent/document",
     description: "Ask questions about a specific uploaded document — the agent retrieves relevant chunks from that file before answering.",
     usage: { doctor: "Clinical Records document preview's \"Chat\" tab (DocumentChatPanel)." },
     method: "POST",
@@ -143,7 +143,7 @@ export const AGENTS: AgentDoc[] = [
     slug: "pdf-chat",
     title: "PDF Chat Agent",
     envVar: "PDF_CHAT_AGENT_API_URL",
-    exampleUrl: "https://agents.drgodly.com/api/agent/pdf-chat",
+    exampleUrl: "https://agents.mindspace.app/api/agent/pdf-chat",
     description: "Newer alternate to the Document Chat Agent. Takes the actual file bytes instead of a file id.",
     usage: { doctor: "Clinical Records document preview's \"Chat\" tab, temporary alternate implementation (PdfChatPanel)." },
     method: "POST",
@@ -164,7 +164,7 @@ export const AGENTS: AgentDoc[] = [
     slug: "doctor-assistant",
     title: "Doctor Assistant Agent (MCP)",
     envVar: "MCP_AGENT_URL",
-    exampleUrl: "https://agents.drgodly.com/api/agent/mcpagent",
+    exampleUrl: "https://agents.mindspace.app/api/agent/mcpagent",
     description:
       "Tool-calling assistant for the doctor dashboard — can query a patient's labs, appointment history, etc. mid-conversation " +
       "via MCP tool calls before answering.",
@@ -187,7 +187,7 @@ export const AGENTS: AgentDoc[] = [
     slug: "suggestion",
     title: "Suggestion Agent",
     envVar: "DOCTOR_ASSISTANT_AGENT_URL",
-    exampleUrl: "https://agents.drgodly.com/api/agent/doctoragent",
+    exampleUrl: "https://agents.mindspace.app/api/agent/doctoragent",
     description:
       "Suggests follow-up questions for a doctor to ask, based on the live consultation transcript so far. A different upstream " +
       "from the Doctor Assistant Agent above despite the similar \"doctor assistant\" branding — don't conflate the two.",

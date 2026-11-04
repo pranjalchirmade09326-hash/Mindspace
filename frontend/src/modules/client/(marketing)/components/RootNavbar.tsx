@@ -1,17 +1,15 @@
 /**
- * RootNavbar — fixed top navigation for the DrGodly marketing landing page.
+ * RootNavbar — fixed top navigation for the MindSpace marketing landing page.
  *
  * Layer: client / (marketing) / components
  *
- * Renders the brand logo, main nav links (FHIR EMR, Platform, Security,
- * Integrations), and action buttons (Sign In / Sign Up or Open App if
+ * Renders the brand logo, patient-focused navigation, and action buttons (Sign In / Sign Up or Open App if
  * already authenticated). Becomes opaque + blurred on scroll.
  */
 
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { OAuthPkceButton } from "@/modules/client/auth/components/OAuthPkceButton";
 import { ThemeSwitcher } from "@/theme/ThemeSwitcher";
 import { NavUser } from "@/modules/client/shared/components/NavUser";
@@ -66,41 +64,35 @@ export default function RootNavbar({
           <Link href="/" className="flex items-center space-x-2 text-primary">
             <AppLogo size={32} className="w-8 h-8" />
             <span className="text-2xl font-bold text-foreground tracking-tight">
-              DrGodly
+              MindSpace
             </span>
-            <Badge
-              variant="outline"
-              className="text-[10px] font-bold ml-1 hidden sm:inline-flex border-primary/30 text-primary"
-            >
-              FHIR R4
-            </Badge>
           </Link>
 
           {/* Nav links */}
-          <nav className="hidden md:flex items-center space-x-8">
+          <nav className="hidden md:flex items-center space-x-7">
             <Link
-              href="/fhir-emr"
+              href="/how-it-works"
               className="text-muted-foreground font-medium hover:text-primary transition-colors"
             >
-              FHIR EMR
+              How it works
             </Link>
             <Link
-              href="/ai-agents"
+              href="#support"
               className="text-muted-foreground font-medium hover:text-primary transition-colors"
             >
-              AI Agents
+              Your support
+            </Link>
+            <Link
+              href="#how-it-works"
+              className="text-muted-foreground font-medium hover:text-primary transition-colors"
+            >
+              How it works
             </Link>
             <Link
               href="/hipaa"
               className="text-muted-foreground font-medium hover:text-primary transition-colors"
             >
-              Security
-            </Link>
-            <Link
-              href="/mcp"
-              className="text-muted-foreground font-medium hover:text-primary transition-colors"
-            >
-              MCP API
+              Privacy
             </Link>
           </nav>
 
@@ -110,6 +102,7 @@ export default function RootNavbar({
             {!user ? (
               <>
                 <OAuthPkceButton
+                  href="/login"
                   variant="ghost"
                   size="sm"
                   className="font-semibold rounded-full"
@@ -117,10 +110,11 @@ export default function RootNavbar({
                   Sign In
                 </OAuthPkceButton>
                 <OAuthPkceButton
+                  href="/signup"
                   size="sm"
                   className="rounded-full px-6 shadow-md hover:shadow-lg transition-all"
                 >
-                  Get Started Free
+                  Get started
                 </OAuthPkceButton>
               </>
             ) : (
@@ -129,13 +123,14 @@ export default function RootNavbar({
                   size="sm"
                   className="rounded-full px-6 shadow-md hover:shadow-lg transition-all"
                   onClick={() => {
-                    const url =
+                    const rawUrl =
                       session?.session.activeRoleRedirectUrl ??
-                      "/bezs/telemedicine/patient/profile";
-                    router.push(url as any);
+                      "/bezs/telemedicine/doctor/dashboard";
+                    const cleanUrl = rawUrl.replace(/^\/(?:en|hi|ta)/, "");
+                    router.push(cleanUrl as any);
                   }}
                 >
-                  Open App
+                  Open Dashboard
                 </Button>
                 <NavUser user={user} />
               </>

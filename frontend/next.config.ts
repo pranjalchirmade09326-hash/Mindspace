@@ -6,6 +6,10 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  onDemandEntries: {
+    maxInactiveAge: 3600 * 1000,
+    pagesBufferLength: 25,
+  },
   output: "standalone",
   experimental: {
     // Required for app/global-not-found.tsx. This app's root layout lives at

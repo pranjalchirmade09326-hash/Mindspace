@@ -4,7 +4,7 @@
  * Route: /[locale]/(marketing)/mcp
  *
  * Server component. Fetches current session and renders the full McpPage
- * explaining the DrGodly Model Context Protocol server and FHIR tool layer.
+ * explaining the MindSpace Model Context Protocol server and FHIR tool layer.
  */
 
 import { getServerSession } from "@/modules/server/auth/get-session";

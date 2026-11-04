@@ -2,55 +2,30 @@
 
 import { Button } from "@/components/ui/button";
 import { ComponentProps } from "react";
+import { useRouter } from "@/i18n/navigation";
 
-type OAuthPkceButtonProps = ComponentProps<typeof Button>;
+type OAuthPkceButtonProps = ComponentProps<typeof Button> & {
+  href?: string;
+};
 
-export function OAuthPkceButton({ children, ...props }: OAuthPkceButtonProps) {
-  const base64UrlEncode = (buf: ArrayBuffer) =>
-    btoa(String.fromCharCode(...new Uint8Array(buf)))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
+export function OAuthPkceButton({
+  children,
+  onClick,
+  href = "/login",
+  ...props
+}: OAuthPkceButtonProps) {
+  const router = useRouter();
 
-  const generateRandomString = (len: number) => {
-    const arr = new Uint8Array(len);
-    window.crypto.getRandomValues(arr);
-    return base64UrlEncode(arr.buffer);
-  };
-
-  async function handleAuth() {
-    const clientId = process.env.NEXT_PUBLIC_BETTER_AUTH_CLIENT_ID;
-    const authUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (!clientId || !authUrl || !appUrl) return;
-
-    const state = generateRandomString(32);
-    localStorage.setItem("oauth_state", state);
-
-    const codeVerifier = generateRandomString(64);
-    localStorage.setItem("oauth_code_verifier", codeVerifier);
-
-    const digest = await window.crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(codeVerifier),
-    );
-    const codeChallenge = base64UrlEncode(digest);
-
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: `${appUrl}/callback`,
-      response_type: "code",
-      scope: "openid profile email offline_access",
-      state,
-      code_challenge: codeChallenge,
-      code_challenge_method: "S256",
-    });
-
-    window.location.href = `${authUrl}/api/auth/oauth2/authorize?${params}`;
+  function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
+    if (onClick) {
+      onClick(e);
+      return;
+    }
+    router.push(href as any);
   }
 
   return (
-    <Button onClick={handleAuth} {...props}>
+    <Button onClick={handleClick} {...props}>
       {children}
     </Button>
   );

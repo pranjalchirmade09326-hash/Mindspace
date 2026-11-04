@@ -1,5 +1,5 @@
 /**
- * Footer — site-wide footer for the DrGodly marketing landing page.
+ * Footer — site-wide footer for the MindSpace marketing landing page.
  *
  * Layer: client / (marketing) / components
  *
@@ -32,11 +32,11 @@ export default function Footer() {
           <div className="col-span-2 lg:col-span-1">
             <a href="#" className="flex items-center space-x-2 text-primary">
               <AppLogo size={32} className="w-8 h-8" />
-              <span className="text-2xl font-bold text-foreground">DrGodly</span>
+              <span className="text-2xl font-bold text-foreground">MindSpace</span>
             </a>
             <p className="mt-4 text-muted-foreground text-sm leading-relaxed">
-              The AI-native FHIR R4 EMR built for HIPAA-compliant telemedicine
-              and electronic medical records.
+              A supportive space for mental wellness, guided conversations,
+              appointments, and connected health records.
             </p>
             <div className="mt-4 flex flex-wrap gap-1.5">
               <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">
@@ -106,7 +106,7 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="mt-12 pt-8 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} DrGodly. All rights reserved.
+            &copy; {new Date().getFullYear()} MindSpace. All rights reserved.
           </p>
           <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
             <span>HL7® FHIR® R4 Compliant</span>

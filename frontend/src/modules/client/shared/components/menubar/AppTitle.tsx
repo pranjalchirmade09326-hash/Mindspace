@@ -23,9 +23,9 @@ export function AppTitle() {
           <Link href="/bezs" onClick={() => setOpenMobile(false)}>
             <AppLogo size={32} className="aspect-square size-8" />
             <div className="grid flex-1 text-start text-sm leading-tight">
-              <span className="truncate font-bold">DrGodly</span>
+              <span className="truncate font-bold">MindSpace</span>
               <span className="truncate text-xs text-muted-foreground">
-                Healthcare Platform
+                Your care space
               </span>
             </div>
           </Link>

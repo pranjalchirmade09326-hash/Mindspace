@@ -6,6 +6,7 @@
  * the hosted app instead of local dev is just `--env hosted`, never a code change.
  */
 
+import fs from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
 
@@ -18,40 +19,41 @@ export interface SeedEnvConfig {
   defaultPractitionerId?: number;
 }
 
-const REQUIRED_KEYS = [
-  "BETTER_AUTH_URL",
-  "FHIR_GQL_URL",
-  "SEED_DOCTOR_EMAIL",
-  "SEED_DOCTOR_PASSWORD",
-] as const;
-
 export function loadEnvConfig(envName: string): SeedEnvConfig {
   const envPath = path.resolve(__dirname, "..", "env", `${envName}.env`);
-  const result = dotenv.config({ path: envPath });
+  const examplePath = path.resolve(__dirname, "..", "env", `${envName}.env.example`);
 
-  if (result.error) {
-    throw new Error(
-      `Could not load ${envPath}.\n` +
-        `Copy scripts/test-data/env/${envName}.env.example to ${envName}.env and fill in real values.`,
-    );
+  let parsed: Record<string, string> = {};
+
+  if (fs.existsSync(envPath)) {
+    parsed = dotenv.config({ path: envPath }).parsed ?? {};
+  } else if (fs.existsSync(examplePath)) {
+    parsed = dotenv.config({ path: examplePath }).parsed ?? {};
   }
 
-  const env = result.parsed ?? {};
-  const missing = REQUIRED_KEYS.filter((k) => !env[k]);
-  if (missing.length) {
-    throw new Error(`Missing required keys in ${envPath}: ${missing.join(", ")}`);
-  }
+  const betterAuthUrl =
+    parsed.BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || "http://localhost:5001";
+  const fhirGqlUrl =
+    parsed.FHIR_GQL_URL || process.env.FHIR_GQL_URL || "http://localhost:8005/api/v1";
+  const email =
+    parsed.SEED_DOCTOR_EMAIL || process.env.SEED_DOCTOR_EMAIL || "doctor@drgodly.com";
+  const password =
+    parsed.SEED_DOCTOR_PASSWORD || process.env.SEED_DOCTOR_PASSWORD || "password";
+  const defaultPatientId =
+    parsed.SEED_DEFAULT_PATIENT_ID || process.env.SEED_DEFAULT_PATIENT_ID
+      ? Number(parsed.SEED_DEFAULT_PATIENT_ID || process.env.SEED_DEFAULT_PATIENT_ID)
+      : 1;
+  const defaultPractitionerId =
+    parsed.SEED_DEFAULT_PRACTITIONER_ID || process.env.SEED_DEFAULT_PRACTITIONER_ID
+      ? Number(parsed.SEED_DEFAULT_PRACTITIONER_ID || process.env.SEED_DEFAULT_PRACTITIONER_ID)
+      : 1;
 
   return {
-    betterAuthUrl: env.BETTER_AUTH_URL,
-    fhirGqlUrl: env.FHIR_GQL_URL,
-    email: env.SEED_DOCTOR_EMAIL,
-    password: env.SEED_DOCTOR_PASSWORD,
-    defaultPatientId: env.SEED_DEFAULT_PATIENT_ID
-      ? Number(env.SEED_DEFAULT_PATIENT_ID)
-      : undefined,
-    defaultPractitionerId: env.SEED_DEFAULT_PRACTITIONER_ID
-      ? Number(env.SEED_DEFAULT_PRACTITIONER_ID)
-      : undefined,
+    betterAuthUrl,
+    fhirGqlUrl,
+    email,
+    password,
+    defaultPatientId,
+    defaultPractitionerId,
   };
 }

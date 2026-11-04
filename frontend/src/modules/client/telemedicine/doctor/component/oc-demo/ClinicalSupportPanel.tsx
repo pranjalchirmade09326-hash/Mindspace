@@ -137,7 +137,7 @@ export function ClinicalSupportPanel() {
         <Card className="p-3.5 gap-2 bg-violet-50/60 border-violet-100 dark:bg-violet-950/20 dark:border-violet-900">
           <div className="flex items-center gap-1.5 text-sm font-semibold">
             <Sparkles className="size-4 text-violet-600" />
-            DrGodly AI Assistant
+            MindSpace AI Assistant
           </div>
           <div className="flex items-center gap-1.5">
             <Input

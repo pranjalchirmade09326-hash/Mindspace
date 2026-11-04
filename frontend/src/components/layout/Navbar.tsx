@@ -20,7 +20,7 @@ export function Navbar() {
           href="/"
           className="text-lg font-bold tracking-tight text-foreground"
         >
-          DrGodly
+          MindSpace
         </Link>
 
         {/* Nav links */}

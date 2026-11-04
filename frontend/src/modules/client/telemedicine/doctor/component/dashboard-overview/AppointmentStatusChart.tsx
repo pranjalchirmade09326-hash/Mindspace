@@ -14,6 +14,7 @@
 
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
@@ -51,6 +52,12 @@ const FALLBACK_META = { color: "#6b7280" }; // gray-500
  * @param counts - Map of FHIR status code → appointment count.
  */
 export function AppointmentStatusChart({ counts }: AppointmentStatusChartProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const slices = Object.entries(counts)
     .filter(([, count]) => count > 0)
     .map(([status, count]) => ({
@@ -76,34 +83,36 @@ export function AppointmentStatusChart({ counts }: AppointmentStatusChartProps) 
         </p>
       ) : (
         <>
-          <div className="relative flex-1 min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={slices}
-                  dataKey="count"
-                  nameKey="label"
-                  innerRadius="55%"
-                  outerRadius="95%"
-                  paddingAngle={2}
-                  stroke="var(--card)"
-                  strokeWidth={2}
-                >
-                  {slices.map((slice) => (
-                    <Cell key={slice.status} fill={slice.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: "0.5rem",
-                    backgroundColor: "var(--popover)",
-                    border: "1px solid var(--border)",
-                    color: "var(--popover-foreground)",
-                    fontSize: 13,
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="relative flex-1 min-h-[180px]">
+            {isMounted ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={slices}
+                    dataKey="count"
+                    nameKey="label"
+                    innerRadius="55%"
+                    outerRadius="95%"
+                    paddingAngle={2}
+                    stroke="var(--card)"
+                    strokeWidth={2}
+                  >
+                    {slices.map((slice) => (
+                      <Cell key={slice.status} fill={slice.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "0.5rem",
+                      backgroundColor: "var(--popover)",
+                      border: "1px solid var(--border)",
+                      color: "var(--popover-foreground)",
+                      fontSize: 13,
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : null}
           </div>
 
           {/* Legend / counts — text labels, not color-alone */}

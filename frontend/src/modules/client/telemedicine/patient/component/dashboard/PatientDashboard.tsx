@@ -22,7 +22,16 @@
 import { useMemo } from "react";
 import { toZonedTime } from "date-fns-tz";
 import { APP_TIMEZONE, nowIST } from "@/modules/shared/helper";
-import { Calendar, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { Link } from "@/i18n/navigation";
+import {
+  ArrowRight,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  MessageCircle,
+  Mic,
+  XCircle,
+} from "lucide-react";
 import { StatCard } from "./StatCard";
 import { AppointmentBarChart, type AppointmentBarChartData } from "./AppointmentBarChart";
 import { AppointmentSummaryChart } from "./AppointmentSummaryChart";
@@ -152,9 +161,60 @@ export function PatientDashboard({ userName, appointments, patientId }: PatientD
           Welcome back, {userName.split(" ")[0]}
         </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Here&apos;s an overview of your appointments and health records.
+          Your health journey, at your pace.
         </p>
       </div>
+
+      <section className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-5 sm:p-7">
+        <div className="max-w-2xl">
+          <p className="text-sm font-medium text-emerald-800">
+            A good place to start
+          </p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">
+            Let&apos;s begin with a conversation.
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Tell us what has been going on in a chat or by voice. You can take
+            your time, and book an appointment when you&apos;re ready.
+          </p>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <Link
+            href="/bezs/telemedicine/patient/intake"
+            className="group flex items-center gap-3 rounded-2xl border border-emerald-200 bg-white/90 p-4 transition hover:border-emerald-400 hover:shadow-sm"
+          >
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800">
+              <MessageCircle className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-slate-900">
+                Start a chat intake
+              </span>
+              <span className="text-xs text-slate-500">
+                Write in your own time
+              </span>
+            </span>
+            <ArrowRight className="size-4 text-emerald-800 transition-transform group-hover:translate-x-1" />
+          </Link>
+          <Link
+            href="/bezs/telemedicine/patient/appointments/intake"
+            className="group flex items-center gap-3 rounded-2xl border border-sky-200 bg-white/90 p-4 transition hover:border-sky-400 hover:shadow-sm"
+          >
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-800">
+              <Mic className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-slate-900">
+                Start a voice intake
+              </span>
+              <span className="text-xs text-slate-500">
+                Talk it through out loud
+              </span>
+            </span>
+            <ArrowRight className="size-4 text-sky-800 transition-transform group-hover:translate-x-1" />
+          </Link>
+        </div>
+      </section>
 
       {/*
        * One shared grid for all four widgets, using `order` (not DOM
