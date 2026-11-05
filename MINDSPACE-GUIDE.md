@@ -402,3 +402,12 @@ MindSpace dashboards abhi **static placeholder** hain — `dashboard-data.ts` me
 
 Running: mindspace-api :8080 ✅, agents :8018 ✅, IAM :5001 ✅, frontend :4000 (compile ho raha tha)
 
+Aapka poora healthcare architecture in 5 main routes mein is tarah complete ho jata hai:
+
+#	Route URL	Kis Group/Dashboard ko handle karega?	Clinical Reason (Healthcare Context)
+1	/en/mindspace/member	Dashboard 1 (Members)	Patients ka portal jahan intake assessments aur medical history store hogi.
+2	/en/mindspace/listener	Dashboard 2 (Volunteers)	Non-clinical peer support layer jo sirf active listening karegi (no medical advice).
+3	/en/mindspace/listener-supervisor	Dashboard 5 & 6 (Supervisors/Community)	Quality audit aur non-clinical operations ka admin panel.
+4	/en/mindspace/safety-operations	Dashboard 3, 4 & 5 (Core Risk Part)	The Medical Hub. Yahan crisis handoffs honge, aur isi section se Therapists sessions lenge aur Psychiatrists prescriptions generate karenge.
+5	/en/mindspace/platform-administrator	Dashboard 7 (Super Admin)	Pure healthcare platform ke access controls, audit logs, aur roles manage karne ke liye.
+--

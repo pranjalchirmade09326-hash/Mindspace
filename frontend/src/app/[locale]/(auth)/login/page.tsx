@@ -65,7 +65,7 @@ export default function LoginPage() {
         }),
       });
 
-      router.push("/en/mindspace/member" as any);
+      router.push("/mindspace/member" as any);
     } catch (err: any) {
       toast.error(err?.message ?? "An unexpected error occurred.");
     } finally {
