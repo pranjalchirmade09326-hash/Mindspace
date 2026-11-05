@@ -1,4 +1,5 @@
 import { MindspaceRoleDashboard } from "@/modules/client/mindspace-dashboard/MindspacePortal";
+import { getMindspaceDashboardData } from "@/modules/server/mindspace/dashboard-data";
 
 export default async function MindspaceRolePage({
   params,
@@ -6,5 +7,6 @@ export default async function MindspaceRolePage({
   params: Promise<{ role: string }>;
 }) {
   const { role } = await params;
-  return <MindspaceRoleDashboard roleId={role} />;
+  const live = await getMindspaceDashboardData(role);
+  return <MindspaceRoleDashboard roleId={role} live={live} />;
 }

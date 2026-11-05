@@ -5,6 +5,8 @@ import {
   CircleCheck,
   Clock3,
   Database,
+  Headphones,
+  Heart,
   LayoutDashboard,
   ShieldAlert,
 } from "lucide-react";
@@ -18,14 +20,22 @@ import {
   type DashboardSection,
   type MindspaceRoleId,
 } from "./dashboard-data";
+import type { LiveDashboardData } from "@/modules/server/mindspace/dashboard-data";
 
-function DemoBanner() {
+function DemoBanner({ live }: { live?: boolean }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+    <div
+      className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${
+        live
+          ? "border-emerald-200 bg-emerald-50 text-emerald-950 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100"
+          : "border-sky-200 bg-sky-50 text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100"
+      }`}
+    >
       <Database className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <p>
-        Preview with sample data. This screen is not connected to the database or
-        live role permissions yet.
+        {live
+          ? "Live data from the MindSpace API. Sections without records show empty states rather than sample rows."
+          : "Preview with sample data. Sign in with a MindSpace account to load live records."}
       </p>
     </div>
   );
@@ -111,12 +121,28 @@ function PortalHeader({
   );
 }
 
-function DashboardHome({ role }: { role: NonNullable<ReturnType<typeof getDashboardRole>> }) {
+function DashboardHome({
+  role,
+  live,
+}: {
+  role: NonNullable<ReturnType<typeof getDashboardRole>>;
+  live?: LiveDashboardData | null;
+}) {
+  // Live metrics replace sample values but keep the role's icon set; any
+  // metric slot the API did not fill falls back to the sample metric.
+  const metrics = live?.metrics?.length
+    ? role.metrics.map((metric, index) => ({
+        ...metric,
+        ...(live.metrics![index] ?? {}),
+      }))
+    : role.metrics;
+  const activities = live?.activities?.length ? live.activities : role.activities;
+
   return (
     <>
       <PortalHeader role={role} />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {role.metrics.map((metric) => {
+        {metrics.map((metric) => {
           const Icon = metric.icon;
           return (
             <Card key={metric.label} className="gap-3">
@@ -134,6 +160,34 @@ function DashboardHome({ role }: { role: NonNullable<ReturnType<typeof getDashbo
           );
         })}
       </div>
+
+      {role.id === "member" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Start an intake</CardTitle>
+            <CardDescription>
+              Choose chat or voice for a guided wellbeing intake. Your transcript
+              is stored encrypted in your MindSpace account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <Link
+              href="/bezs/telemedicine/patient/intake"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              Chat intake
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+            <Link
+              href="/bezs/telemedicine/patient/appointments/intake"
+              className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
+            >
+              Voice intake
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
         <Card>
@@ -173,11 +227,11 @@ function DashboardHome({ role }: { role: NonNullable<ReturnType<typeof getDashbo
             <CardDescription>Illustrative activity for this role.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            {role.activities.map((activity, index) => (
+            {activities.map((activity, index) => (
               <div key={`${activity.title}-${activity.time}`} className="flex gap-3">
                 <div className="flex flex-col items-center">
                   <span className={`mt-1 size-2.5 rounded-full ${index === 0 ? "bg-primary" : "bg-muted-foreground/30"}`} />
-                  {index < role.activities.length - 1 && <span className="mt-1 h-full min-h-7 w-px bg-border" />}
+                  {index < activities.length - 1 && <span className="mt-1 h-full min-h-7 w-px bg-border" />}
                 </div>
                 <div className="min-w-0 flex-1 pb-1">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -221,10 +275,18 @@ function DashboardHome({ role }: { role: NonNullable<ReturnType<typeof getDashbo
 function SectionPage({
   role,
   section,
+  live,
 }: {
   role: NonNullable<ReturnType<typeof getDashboardRole>>;
   section: DashboardSection;
+  live?: LiveDashboardData | null;
 }) {
+  // When the API returned rows for this section they replace the sample
+  // table; otherwise the sample preview remains visible.
+  const override = live?.sections?.[section.id];
+  const columns = override?.columns ?? section.columns;
+  const rows = override?.rows ?? section.rows;
+
   return (
     <>
       <PortalHeader role={role} section={section} />
@@ -237,25 +299,27 @@ function SectionPage({
       <Card>
         <CardHeader>
           <CardTitle>{section.title}</CardTitle>
-          <CardDescription>Sample records for interface preview only.</CardDescription>
+          <CardDescription>
+            {override ? "Live records from the MindSpace API." : "Sample records for interface preview only."}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div
             className="hidden gap-4 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid"
-            style={{ gridTemplateColumns: `repeat(${section.columns.length}, minmax(0, 1fr)) auto` }}
+            style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr)) auto` }}
           >
-            {section.columns.map((column) => <span key={column}>{column}</span>)}
+            {columns.map((column) => <span key={column}>{column}</span>)}
             <span>Status</span>
           </div>
-          {section.rows.map((row, index) => (
+          {rows.map((row, index) => (
             <div
               key={`${section.id}-${index}`}
               className="grid gap-3 rounded-xl border p-4 md:items-center md:gap-4"
-              style={{ gridTemplateColumns: `repeat(${section.columns.length}, minmax(0, 1fr)) auto` }}
+              style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr)) auto` }}
             >
               {row.values.map((value, valueIndex) => (
                 <div key={`${section.id}-${index}-${valueIndex}`} className="min-w-0">
-                  <p className="text-xs text-muted-foreground md:hidden">{section.columns[valueIndex]}</p>
+                  <p className="text-xs text-muted-foreground md:hidden">{columns[valueIndex]}</p>
                   <p className="break-words text-sm">{value}</p>
                 </div>
               ))}
@@ -272,15 +336,21 @@ function SectionPage({
   );
 }
 
-export function MindspaceRoleDashboard({ roleId }: { roleId: string }) {
+export function MindspaceRoleDashboard({
+  roleId,
+  live,
+}: {
+  roleId: string;
+  live?: LiveDashboardData | null;
+}) {
   const role = getDashboardRole(roleId);
   if (!role) notFound();
 
   return (
     <div className="space-y-6 py-2">
-      <DemoBanner />
+      <DemoBanner live={live?.live} />
       <RoleSwitcher activeRole={role.id} />
-      <DashboardHome role={role} />
+      <DashboardHome role={role} live={live} />
     </div>
   );
 }
@@ -288,9 +358,11 @@ export function MindspaceRoleDashboard({ roleId }: { roleId: string }) {
 export function MindspaceRoleSection({
   roleId,
   sectionId,
+  live,
 }: {
   roleId: string;
   sectionId: string;
+  live?: LiveDashboardData | null;
 }) {
   const role = getDashboardRole(roleId);
   const section = role?.sections.find((item) => item.id === sectionId);
@@ -298,9 +370,9 @@ export function MindspaceRoleSection({
 
   return (
     <div className="space-y-6 py-2">
-      <DemoBanner />
+      <DemoBanner live={live?.live} />
       <RoleSwitcher activeRole={role.id} />
-      <SectionPage role={role} section={section} />
+      <SectionPage role={role} section={section} live={live} />
     </div>
   );
 }
@@ -345,6 +417,36 @@ export function MindspaceWorkspaceIndex() {
           );
         })}
       </div>
+
+      {/* Demo sign-in shortcuts — jump straight into the member or listener
+          workspace without a full auth round-trip. Live data still requires
+          a real MindSpace session; otherwise sample data is shown. */}
+      <Card className="border-dashed">
+        <CardHeader>
+          <CardTitle className="text-base">Demo sign-in</CardTitle>
+          <CardDescription>
+            Preview the member and listener experiences without signing in.
+            Connect a MindSpace account to see live records.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3">
+          <Link
+            href="/mindspace/member"
+            className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
+          >
+            <Heart className="size-4" aria-hidden="true" />
+            Continue as Member
+          </Link>
+          <Link
+            href="/mindspace/listener"
+            className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
+          >
+            <Headphones className="size-4" aria-hidden="true" />
+            Continue as Listener
+          </Link>
+        </CardContent>
+      </Card>
+
       <p className="text-xs text-muted-foreground">
         Role pages are interface previews only. Live authentication, access control, and persistence are not part of this demo.
       </p>
