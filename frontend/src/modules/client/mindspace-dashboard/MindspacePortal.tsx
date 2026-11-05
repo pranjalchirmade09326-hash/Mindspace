@@ -8,6 +8,9 @@ import {
   Headphones,
   Heart,
   LayoutDashboard,
+  LockKeyhole,
+  MessageCircle,
+  Mic,
   ShieldAlert,
 } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -360,6 +363,199 @@ function AuthRequired({ role }: { role: { title: string; shortTitle: string } })
   );
 }
 
+/**
+ * Member workspace — dedicated layout with a left sidebar of member pages and
+ * prominent chat/voice intake actions in the main area.
+ *
+ * Only the member role uses this layout; other roles keep the generic
+ * DashboardHome grid.
+ */
+function MemberDashboard({
+  role,
+  live,
+}: {
+  role: NonNullable<ReturnType<typeof getDashboardRole>>;
+  live?: LiveDashboardData | null;
+}) {
+  const metrics = live?.metrics?.length
+    ? role.metrics.map((metric, index) => ({
+        ...metric,
+        ...(live.metrics![index] ?? {}),
+      }))
+    : role.metrics;
+  const activities = live?.activities?.length ? live.activities : role.activities;
+
+  // Sidebar entries: intake actions first, then the member's workspace pages.
+  const memberNav = [
+    { id: "intake-chat", title: "Chat intake", href: "/intake/chat", icon: MessageCircle, primary: true },
+    { id: "intake-voice", title: "Voice intake", href: "/intake/voice", icon: Mic, primary: true },
+    ...role.sections.map((section) => ({
+      id: section.id,
+      title: section.title,
+      href: `/mindspace/${role.id}/${section.id}`,
+      icon: section.icon,
+      primary: false,
+    })),
+  ];
+
+  return (
+    <div className="space-y-6 py-2">
+      <DemoBanner live={live?.live} />
+      <RoleSwitcher activeRole={role.id} />
+
+      <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        {/* Left sidebar — member pages only */}
+        <aside className="lg:sticky lg:top-4 lg:self-start">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">My space</CardTitle>
+              <CardDescription>Member pages and intake</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {memberNav.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.id}
+                    href={item.href}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                      item.primary
+                        ? "font-medium text-primary hover:bg-primary/10"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="size-4 shrink-0" aria-hidden="true" />
+                    {item.title}
+                  </Link>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </aside>
+
+        {/* Main area — intake first, then workspace pages */}
+        <div className="space-y-6 min-w-0">
+          <PortalHeader role={role} />
+
+          {/* Prominent intake actions */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Link
+              href="/intake/chat"
+              className="group rounded-2xl border-2 border-primary/30 bg-primary/5 p-6 transition-colors hover:border-primary hover:bg-primary/10"
+            >
+              <span className="mb-4 flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                <MessageCircle className="size-6" aria-hidden="true" />
+              </span>
+              <h2 className="text-lg font-semibold">Chat intake</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Talk through what&apos;s on your mind in a guided conversation.
+              </p>
+              <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary">
+                Start chatting <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+              </span>
+            </Link>
+            <Link
+              href="/intake/voice"
+              className="group rounded-2xl border-2 border-border bg-card p-6 transition-colors hover:border-primary/50 hover:bg-muted/40"
+            >
+              <span className="mb-4 flex size-12 items-center justify-center rounded-xl bg-muted text-foreground">
+                <Mic className="size-6" aria-hidden="true" />
+              </span>
+              <h2 className="text-lg font-semibold">Voice intake</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Prefer to speak? A voice-guided intake, transcribed privately.
+              </p>
+              <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium">
+                Start speaking <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+              </span>
+            </Link>
+          </div>
+
+          {/* Quick stats */}
+          <div className="grid gap-4 sm:grid-cols-3">
+            {metrics.map((metric) => {
+              const Icon = metric.icon;
+              return (
+                <Card key={metric.label} className="gap-3">
+                  <CardHeader className="flex-row items-start justify-between">
+                    <div className="space-y-1">
+                      <CardDescription>{metric.label}</CardDescription>
+                      <CardTitle className="text-2xl">{metric.value}</CardTitle>
+                    </div>
+                    <span className={`rounded-xl p-2 ${role.accent}`}>
+                      <Icon className="size-4" aria-hidden="true" />
+                    </span>
+                  </CardHeader>
+                  <CardContent className="text-xs text-muted-foreground">{metric.note}</CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Workspace pages */}
+          <Card>
+            <CardHeader>
+              <CardTitle>My pages</CardTitle>
+              <CardDescription>Support, wellbeing, and privacy for your account.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {role.sections.map((section) => {
+                const Icon = section.icon;
+                return (
+                  <Link
+                    key={section.id}
+                    href={`/mindspace/${role.id}/${section.id}`}
+                    className="group rounded-xl border p-4 transition-colors hover:border-primary/40 hover:bg-muted/40"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <span className={`rounded-lg p-2 ${role.accent}`}>
+                        <Icon className="size-4" aria-hidden="true" />
+                      </span>
+                      <ArrowRight
+                        className="size-4 text-muted-foreground transition-transform group-hover:translate-x-1"
+                        aria-hidden="true"
+                      />
+                    </div>
+                    <h2 className="mt-4 font-medium">{section.title}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">{section.description}</p>
+                  </Link>
+                );
+              })}
+            </CardContent>
+          </Card>
+
+          {/* Recent activity */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent activity</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {activities.map((activity, index) => (
+                <div key={`${activity.title}-${activity.time}`} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <span className={`mt-1 size-2.5 rounded-full ${index === 0 ? "bg-primary" : "bg-muted-foreground/30"}`} />
+                    {index < activities.length - 1 && <span className="mt-1 h-full min-h-7 w-px bg-border" />}
+                  </div>
+                  <div className="min-w-0 flex-1 pb-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-medium">{activity.title}</p>
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock3 className="size-3" aria-hidden="true" />
+                        {activity.time}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">{activity.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function MindspaceRoleDashboard({
   roleId,
   live,
@@ -380,6 +576,11 @@ export function MindspaceRoleDashboard({
         <AuthRequired role={role} />
       </div>
     );
+  }
+
+  // The member workspace gets a dedicated sidebar + intake-first layout.
+  if (role.id === "member") {
+    return <MemberDashboard role={role} live={live} />;
   }
 
   return (
