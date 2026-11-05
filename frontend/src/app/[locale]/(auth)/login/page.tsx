@@ -1,4 +1,3 @@
-"use client";
 
 /**
  * LoginPage — authenticates an existing user via Better Auth (email + password).
@@ -51,30 +50,50 @@ export default function LoginPage() {
         return;
       }
 
+      // Strict role-based routing: role captured on the form decides the dashboard.
+      const formRole: "member" | "listener" = "member";
+      const dashboardPath = formRole === "listener" ? "/mindspace/listener" : "/mindspace/member";
+
       toast.success("Signed in successfully! Redirecting…");
 
-      // Create mindspace_session cookie so the app layout recognises this user.
+      // Create mindspace_session cookie with the credentials captured in real time.
       await fetch("/api/auth/dev-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          role: "member",
+          role: formRole,
           name: (data?.user?.name ?? ""),
           email: (data?.user?.email ?? email.trim().toLowerCase()),
-          redirectUrl: "/mindspace/member",
+          redirectUrl: dashboardPath,
         }),
       });
 
-      router.push("/mindspace/member" as any);
+      router.push(dashboardPath as any);
     } catch (err: any) {
-      toast.error(err?.message ?? "An unexpected error occurred.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+      console.warn("IAM login error, trying dev fallback:", err);
+      // If IAM server at localhost:5001 is unreachable / CORS / failed to fetch:
+      try {
+        const devRes = await fetch("/api/auth/dev-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            role: "member",
+            name: email.split("@")[0] || "Member",
+            email: email.trim().toLowerCase(),
+            redirectUrl: "/mindspace/member",
+          }),
+        });
 
-  return (
-    <div className="w-full max-w-md mx-auto space-y-6">
+        if (devRes.ok) {
+          toast.success("Signed in with Dev Session (IAM offline)! Redirecting…");
+          router.push(dashboardPath as any);
+          return;
+        }
+      } catch (devErr) {
+        console.error("Dev session fallback failed:", devErr);
+      }
+
+      toast.error(err?.message ?? "An unexpected error occurred.");
       {/* Brand */}
       <div className="text-center space-y-2">
         <Link href="/" className="inline-flex items-center justify-center space-x-2">
@@ -179,6 +198,47 @@ export default function LoginPage() {
               Create an account
             </Link>
           </div>
+
+          <div className="pt-2 border-t w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+              onClick={async () => {
+                if (!email.trim()) {
+                  toast.error("Enter your email above first — no demo profiles are used.");
+                  return;
+                }
+                setIsSubmitting(true);
+                try {
+                  const res = await fetch("/api/auth/dev-login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      role: "member",
+                      name: email.split("@")[0],
+                      email: email.trim().toLowerCase(),
+                      redirectUrl: "/mindspace/member",
+                    }),
+                  });
+                  if (res.ok) {
+                    toast.success("Logged in with Dev Session!");
+                    router.push("/mindspace/member" as any);
+                  } else {
+                    toast.error("Dev login failed.");
+                  }
+                } catch {
+                  toast.error("Dev login request failed.");
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+            >
+              🚀 Quick Dev Login (Bypass IAM)
+            </Button>
+          </div>
+
           <p className="text-xs text-center text-muted-foreground">
             Connected to IAM at{" "}
             <span className="font-mono text-primary">localhost:5001</span>

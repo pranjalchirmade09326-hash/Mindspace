@@ -42,7 +42,7 @@ export function NavUser(props: NavUserProps) {
     .toUpperCase()
     .slice(0, 2) || "U";
 
-  const displayRole = role || "patient";
+  const displayRole = role || username || "member";
 
   async function handleLogout() {
     try {

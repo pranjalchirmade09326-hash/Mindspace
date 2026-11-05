@@ -35,6 +35,13 @@ test("Swagger documents MindSpace member APIs and protected routes reject anonym
     assert.ok(paths["/api/v1/admin/outbox-events"]);
     assert.ok(paths["/api/v1/admin/event-consumer-receipts/{id}"]);
     assert.ok(paths["/api/v1/notifications"]);
+    assert.ok(paths["/api/v1/auth/sign-up"]);
+    assert.ok(paths["/api/v1/auth/sign-in"]);
+    assert.ok(paths["/api/v1/auth/logout"]);
+    assert.deepEqual(
+      paths["/api/v1/auth/logout"]?.post?.security,
+      [{ bearerAuth: [] }],
+    );
     assert.deepEqual(
       paths["/api/v1/members/me/profile"]?.get?.security,
       [{ bearerAuth: [] }],
@@ -64,6 +71,7 @@ test("Swagger documents MindSpace member APIs and protected routes reject anonym
       { method: "GET", url: "/api/v1/peer/match-requests" },
       { method: "GET", url: "/api/v1/operations/safety/cases" },
       { method: "GET", url: "/api/v1/admin/roles" },
+      { method: "POST", url: "/api/v1/auth/logout" },
     ]) {
       const response = await app.inject(route);
       assert.equal(response.statusCode, 401, `${route.url} should reject anonymous access`);

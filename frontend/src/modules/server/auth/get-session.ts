@@ -6,60 +6,42 @@ import { AuthResponse } from "./types";
  * MindSpace role ids — mirrors the dashboards defined in
  * modules/client/mindspace-dashboard/dashboard-data.ts.
  */
-const MINDSpace_ROLES = [
-  "member",
-  "listener",
-  "listener-supervisor",
-  "safety-operations",
-  "platform-administrator",
-] as const;
-
-type MindspaceRole = (typeof MINDSpace_ROLES)[number];
-
-const ROLE_LABELS: Record<MindspaceRole, { name: string; email: string }> = {
-  member: { name: "Demo Member", email: "member@mindspace.app" },
-  listener: { name: "Demo Listener", email: "listener@mindspace.app" },
-  "listener-supervisor": {
-    name: "Demo Supervisor",
-    email: "supervisor@mindspace.app",
-  },
-  "safety-operations": {
-    name: "Demo Safety Ops",
-    email: "safety@mindspace.app",
-  },
-  "platform-administrator": {
-    name: "Demo Administrator",
-    email: "admin@mindspace.app",
-  },
-};
+const MINDSpace_ROLES = ["member", "listener"] as const;
 
 /**
- * Builds a local dev session for one of the five MindSpace roles.
- * Used only outside production so the app shell can be previewed without
- * a live identity provider.
+ * Builds a local dev session from real sign-in credentials captured at login.
+ * The identity comes from the credentials the user actually entered — no
+ * fabricated "Demo" profile values.
  *
- * @param role - MindSpace role id (defaults to "member").
- * @returns A synthetic Better-Auth-shaped session response.
+ * @param role   - MindSpace role id ("member" or "listener").
+ * @param name   - Display name captured from the sign-in form.
+ * @param email  - Email captured from the sign-in form.
+ * @returns A Better-Auth-shaped session response for the given credentials.
  */
-export function getDevSession(role = "member"): AuthResponse {
+export function getDevSession(
+  role: string,
+  name?: string,
+  email?: string,
+): AuthResponse {
   const normalized = (role || "member").toString().trim().toLowerCase();
   const cleanRole = (MINDSpace_ROLES as readonly string[]).includes(normalized)
-    ? (normalized as MindspaceRole)
-    : "member";
-  const { name, email } = ROLE_LABELS[cleanRole];
+    ? (normalized as (typeof MINDSpace_ROLES)[number])
+    : ("member" as (typeof MINDSpace_ROLES)[number]);
+  const displayName = (name ?? "").trim() || "Member";
+  const displayEmail = (email ?? "").trim();
   const redirectUrl = `/mindspace/${cleanRole}`;
 
   return {
     user: {
-      id: `usr-${cleanRole}-01`,
-      name,
-      email,
+      id: `usr-${cleanRole}-${displayEmail ? displayEmail.split("@")[0] : "user"}`,
+      name: displayName,
+      email: displayEmail,
       emailVerified: true,
       image: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       username: cleanRole,
-      displayUsername: name,
+      displayUsername: displayName,
       twoFactorEnabled: false,
       role: cleanRole,
       banned: false,
@@ -67,14 +49,14 @@ export function getDevSession(role = "member"): AuthResponse {
       banExpires: null,
     },
     session: {
-      id: `sess-${cleanRole}-01`,
+      id: `sess-${cleanRole}-${displayEmail ? displayEmail.split("@")[0] : "user"}`,
       token: "dev-jwt-token",
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ipAddress: "127.0.0.1",
       userAgent: "Local Dev Browser",
-      userId: `usr-${cleanRole}-01`,
+      userId: `usr-${cleanRole}-${displayEmail ? displayEmail.split("@")[0] : "user"}`,
       activeOrganizationId: "org-default-01",
       activeTeamId: null,
       impersonatedBy: null,

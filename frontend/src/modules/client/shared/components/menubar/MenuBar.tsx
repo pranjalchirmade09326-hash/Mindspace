@@ -19,7 +19,7 @@ import { NavGroup } from "./NavGroup";
 import { AppTitle } from "./AppTitle";
 import { SidebarNavUser } from "../SidebarNavUser";
 import { type NavGroup as NavGroupProps } from "./types";
-import { mindspaceSidebarData } from "./menu-datas";
+import { mindspaceSidebarData, getMindspaceNavForPath } from "./menu-datas";
 
 type TUser = {
   name: string;
@@ -123,7 +123,7 @@ export function MenuBar(user: TUser) {
   const navGroups: NavGroupProps[] =
     currentApp && buildNavGroups(currentApp).length > 0
       ? buildNavGroups(currentApp)
-      : (mindspaceSidebarData.navGroups as NavGroupProps[]);
+      : (getMindspaceNavForPath(pathname, user.role) as NavGroupProps[]);
 
   useEffect(() => {
     let isSubscribed = true;

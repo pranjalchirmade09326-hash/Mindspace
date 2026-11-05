@@ -1,41 +1,41 @@
-# GATE STATUS
+# Gate Status
 
-## Gate — Milestone 2 (Auth & Role Routing)
+## Gate — Milestone 1 (Marketing Landing Page)
 | Agent | Role | Verdict | Source |
 |-------|------|---------|--------|
-| worker_m2_repl | teamwork_worker | DONE (13/13 passed, 0 type errors) | handoff.md |
-| reviewer_m2_1 | teamwork_reviewer | APPROVE (20/20 adversarial tests passed) | handoff.md |
-| reviewer_m2_2 | teamwork_reviewer | APPROVE (13/13 contract tests passed) | handoff.md |
-| challenger_m2_1 | teamwork_challenger | APPROVE (71/71 stress tests passed) | handoff.md |
-| challenger_m2_2 | teamwork_challenger | APPROVE (30/30 empirical tests passed) | handoff.md |
-| auditor_m2_1 | teamwork_auditor | CLEAN (zero cheating, genuine logic, git clean) | handoff.md |
+| worker_m1 | teamwork_worker | DONE (tsc & eslint passed) | handoff.md |
+| reviewer_m1_1 | teamwork_reviewer | APPROVE | handoff.md |
+| reviewer_m1_2 | teamwork_reviewer | APPROVE | handoff.md |
+| challenger_m1_1 | teamwork_challenger | APPROVE | handoff.md |
+| challenger_m1_2 | teamwork_challenger | APPROVE | handoff.md |
+| auditor_m1_1 | teamwork_auditor | CLEAN | handoff.md |
 
-Gate Result: **PASS**
+Gate Result: **PASS** (Unanimous approval: 2 Reviewers APPROVE, 2 Challengers APPROVE, Forensic Auditor CLEAN)
 
 ---
 
-## Gate — Milestone 3 (Live Profile Data Integration)
+## Gate — Milestone 2 (Sign-Up Registration & Direct Dashboard Routing) — Iteration 1
 | Agent | Role | Verdict | Source |
 |-------|------|---------|--------|
-| worker_m3 | teamwork_worker | DONE (19/19 passed, 0 type errors) | handoff.md |
-| reviewer_m3_1_repl | teamwork_reviewer | APPROVE (19/19 unit, 10/10 F8, 125/125 syntax) | handoff.md |
-| reviewer_m3_2 | teamwork_reviewer | APPROVE (19/19 unit, 10/10 F8, 125/125 syntax) | handoff.md |
-| challenger_m3_1_repl | teamwork_challenger | APPROVE (36/36 stress tests passed) | handoff.md |
-| challenger_m3_2_repl | teamwork_challenger | APPROVE (15/15 empirical tests passed) | handoff.md |
-| auditor_m3_1_repl | teamwork_auditor | CLEAN (zero cheating, genuine SQL, git clean) | handoff.md |
+| worker_m2 | teamwork_worker | DONE (functional tests passed) | handoff.md |
+| reviewer_m2_1 | teamwork_reviewer | REQUEST_CHANGES | handoff.md |
+| reviewer_m2_2 | teamwork_reviewer | REQUEST_CHANGES | handoff.md |
+| challenger_m2_1 | teamwork_challenger | REQUEST_CHANGES | handoff.md |
+| challenger_m2_2 | teamwork_challenger | REQUEST_CHANGES | handoff.md |
+| auditor_m2_1 | teamwork_auditor | CLEAN | handoff.md |
 
-Gate Result: **PASS**
+Gate Result: **FAIL** (REQUEST_CHANGES: Fix TS2769 in tests/m2-signup.test.ts lines 34-35 and add devRes.ok check in signup/page.tsx line 90)
 
 ---
 
-## Gate — Milestone 4 (Sub-Second Performance & Console Errors)
+## Gate — Milestone 2 (Sign-Up Registration & Direct Dashboard Routing) — Iteration 2 (Rework)
 | Agent | Role | Verdict | Source |
 |-------|------|---------|--------|
-| worker_m4 | teamwork_worker | DONE (F9 10/10, F10 10/10, 125/125 syntax) | handoff.md |
-| reviewer_m4_1 | teamwork_reviewer | APPROVE (F9 10/10, F10 10/10, 125/125 syntax, 0 CLS) | handoff.md |
-| reviewer_m4_2 | teamwork_reviewer | APPROVE (F9 10/10, F10 10/10, 125/125 syntax, clean skeletons) | handoff.md |
-| challenger_m4_1 | teamwork_challenger | IN_PROGRESS (executing stress suite) | progress.md |
-| challenger_m4_2 | teamwork_challenger | IN_PROGRESS (executing hydration/SSR fuzzer) | progress.md |
-| auditor_m4_1 | teamwork_auditor | CLEAN (zero cheating, genuine logic, git clean) | handoff.md |
+| worker_m2_rework | teamwork_worker | DONE (tsc clean, 100% tests passed) | handoff.md |
+| reviewer_m2_rework_1 | teamwork_reviewer | APPROVE | handoff.md |
+| reviewer_m2_rework_2 | teamwork_reviewer | PENDING | handoff.md |
+| challenger_m2_rework_1 | teamwork_challenger | PENDING | handoff.md |
+| challenger_m2_rework_2 | teamwork_challenger | PENDING | handoff.md |
+| auditor_m2_rework_1 | teamwork_auditor | PENDING | handoff.md |
 
 Gate Result: **IN_PROGRESS**

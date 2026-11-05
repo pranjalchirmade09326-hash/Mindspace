@@ -11,32 +11,9 @@ import { cookies } from "next/headers";
  *   redirectUrl?, locale? }
  */
 
-const MINDSpace_ROLES = [
-  "member",
-  "listener",
-  "listener-supervisor",
-  "safety-operations",
-  "platform-administrator",
-] as const;
+const MINDSpace_ROLES = ["member", "listener"] as const;
 
 type MindspaceRole = (typeof MINDSpace_ROLES)[number];
-
-const ROLE_DEFAULTS: Record<MindspaceRole, { name: string; email: string }> = {
-  member: { name: "Demo Member", email: "member@mindspace.app" },
-  listener: { name: "Demo Listener", email: "listener@mindspace.app" },
-  "listener-supervisor": {
-    name: "Demo Supervisor",
-    email: "supervisor@mindspace.app",
-  },
-  "safety-operations": {
-    name: "Demo Safety Ops",
-    email: "safety@mindspace.app",
-  },
-  "platform-administrator": {
-    name: "Demo Administrator",
-    email: "admin@mindspace.app",
-  },
-};
 
 export async function POST(req: Request) {
   try {
@@ -46,15 +23,24 @@ export async function POST(req: Request) {
       ? (rawRole as MindspaceRole)
       : "member";
     const locale = (body.locale || "en").toString().trim().toLowerCase();
-    const defaults = ROLE_DEFAULTS[role];
+    // Real credentials captured at sign-in are required — no fabricated "Demo" profile.
     const name =
       typeof body.name === "string" && body.name.trim()
         ? body.name.trim()
-        : defaults.name;
+        : (typeof body.email === "string" && body.email.trim()
+            ? body.email.trim().split("@")[0]
+            : "Member");
     const email =
       typeof body.email === "string" && body.email.trim()
-        ? body.email.trim()
-        : defaults.email;
+        ? body.email.trim().toLowerCase()
+        : "";
+
+    if (!email) {
+      return NextResponse.json(
+        { error: "A signed-in email is required to create a MindSpace session." },
+        { status: 400 },
+      );
+    }
 
     const defaultRedirect = `/mindspace/${role}`;
     let redirectPath = (

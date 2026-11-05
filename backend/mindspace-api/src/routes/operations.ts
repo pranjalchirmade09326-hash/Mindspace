@@ -1,9 +1,28 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Prisma } from "@prisma/client";
+import { scryptSync, randomBytes, timingSafeEqual } from "node:crypto";
 import { recordAudit } from "../audit.js";
-import { requireActivePrincipal, requireMember, requireRoles } from "../auth.js";
+import { requireActivePrincipal, requireMember, requireRoles, requireVerifiedIdentity, signLocalToken } from "../auth.js";
 import { prisma } from "../db.js";
 import { intakeContentCipher } from "../security/intake-content-cipher.js";
+
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString("hex");
+  const hash = scryptSync(password, salt, 64).toString("hex");
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password: string, stored: string): boolean {
+  try {
+    const [salt, key] = stored.split(":");
+    if (!salt || !key) return false;
+    const keyBuffer = Buffer.from(key, "hex");
+    const derived = scryptSync(password, salt, 64);
+    return timingSafeEqual(keyBuffer, derived);
+  } catch {
+    return false;
+  }
+}
 
 const security = { security: [{ bearerAuth: [] }] };
 const errorSchema = { $ref: "ErrorResponse#" };
@@ -1080,6 +1099,247 @@ export async function registerOperationRoutes(app: FastifyInstance) {
     },
   }, async () => ({
     sessionManagement: "external_identity_provider",
-    logout: "Use the MindSpace identity provider to end the current session.",
+    logout: "POST /api/v1/auth/logout with your Bearer token to terminate the session.",
   }));
+
+  app.post<{ Body: { email: string; password: string; name?: string; role?: RoleCode } }>(
+    "/api/v1/auth/sign-up",
+    {
+      schema: {
+        tags: ["Identity & Access"],
+        summary: "Register a new user / member and obtain a Bearer token",
+        description: "Creates an active user account in the MindSpace database, assigns the specified role (default: member), and returns a Bearer JWT token ready to authorize Swagger requests.",
+        body: {
+          type: "object",
+          required: ["email", "password"],
+          properties: {
+            email: { type: "string", format: "email" },
+            password: { type: "string", minLength: 6, description: "Password (minimum 6 characters)" },
+            name: { type: "string", minLength: 1, maxLength: 100, description: "Display name (optional)" },
+            role: {
+              type: "string",
+              enum: ["member", "listener", "listener_supervisor", "safety_operations_specialist", "platform_administrator"],
+              default: "member",
+              description: "Role to assign (default: member)",
+            },
+          },
+        },
+        response: {
+          201: {
+            type: "object",
+            properties: {
+              token: { type: "string" },
+              tokenType: { type: "string", example: "Bearer" },
+              expiresIn: { type: "integer", example: 86400 },
+              user: {
+                type: "object",
+                properties: {
+                  userId: { type: "string" },
+                  email: { type: "string" },
+                  displayName: { type: "string" },
+                  roles: { type: "array", items: { type: "string" } },
+                },
+                required: ["userId", "email", "displayName", "roles"],
+              },
+            },
+            required: ["token", "tokenType", "expiresIn", "user"],
+          },
+          400: errorSchema,
+          409: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { email, password, name, role = "member" } = request.body;
+      const normalizedEmail = email.toLowerCase().trim();
+
+      const existing = await prisma.appPrincipal.findUnique({
+        where: { userId: normalizedEmail },
+        select: { userId: true },
+      });
+      if (existing) {
+        return apiError(reply, 409, "ACCOUNT_ALREADY_EXISTS", "An account with this email already exists.");
+      }
+
+      const displayName = name?.trim() || (normalizedEmail.split("@")[0] ?? normalizedEmail);
+      const passwordHash = hashPassword(password);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.appPrincipal.create({
+          data: {
+            userId: normalizedEmail,
+            accountState: "active",
+          },
+        });
+        await tx.roleAssignment.create({
+          data: {
+            userId: normalizedEmail,
+            roleCode: role,
+            assignmentState: "active",
+          },
+        });
+        await tx.memberProfile.create({
+          data: {
+            userId: normalizedEmail,
+            displayName,
+            eligibilityState: "eligible",
+            profileState: "active",
+          },
+        });
+        await tx.memberPreference.create({
+          data: {
+            userId: normalizedEmail,
+            locale: "en",
+            timezone: "UTC",
+            communication: { auth: { email: normalizedEmail, passwordHash } },
+          },
+        });
+        await tx.consentRecord.create({
+          data: {
+            userId: normalizedEmail,
+            purposeCode: "intake",
+            policyVersion: "v1",
+            consentState: "granted",
+            capturedBy: "member",
+            dataScope: { transcriptStored: true, encrypted: true },
+          },
+        });
+      });
+
+      await audit(request, normalizedEmail, "auth.sign_up", "user", normalizedEmail);
+      const token = await signLocalToken(normalizedEmail, [role]);
+
+      return reply.code(201).send({
+        token,
+        tokenType: "Bearer",
+        expiresIn: 86400,
+        user: {
+          userId: normalizedEmail,
+          email: normalizedEmail,
+          displayName,
+          roles: [role],
+        },
+      });
+    }
+  );
+
+  app.post<{ Body: { email: string; password: string } }>(
+    "/api/v1/auth/sign-in",
+    {
+      schema: {
+        tags: ["Identity & Access"],
+        summary: "Sign in with email and password and obtain a Bearer token",
+        description: "Validates user credentials against the MindSpace database, records the sign-in audit event, and returns a Bearer JWT token to authorize Swagger requests.",
+        body: {
+          type: "object",
+          required: ["email", "password"],
+          properties: {
+            email: { type: "string", format: "email" },
+            password: { type: "string", minLength: 1 },
+          },
+        },
+        response: {
+          200: {
+            type: "object",
+            properties: {
+              token: { type: "string" },
+              tokenType: { type: "string", example: "Bearer" },
+              expiresIn: { type: "integer", example: 86400 },
+              user: {
+                type: "object",
+                properties: {
+                  userId: { type: "string" },
+                  email: { type: "string" },
+                  displayName: { type: "string" },
+                  roles: { type: "array", items: { type: "string" } },
+                },
+                required: ["userId", "email", "displayName", "roles"],
+              },
+            },
+            required: ["token", "tokenType", "expiresIn", "user"],
+          },
+          400: errorSchema,
+          401: errorSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const { email, password } = request.body;
+      const normalizedEmail = email.toLowerCase().trim();
+
+      const principal = await prisma.appPrincipal.findUnique({
+        where: { userId: normalizedEmail },
+        include: {
+          roles: {
+            where: { assignmentState: "active" },
+          },
+          profile: true,
+          preferences: true,
+        },
+      });
+
+      if (!principal || principal.accountState !== "active") {
+        return apiError(reply, 401, "INVALID_CREDENTIALS", "Invalid email or password.");
+      }
+
+      const comm = principal.preferences?.communication as Record<string, any> | null;
+      const storedHash = comm?.auth?.passwordHash;
+      if (typeof storedHash === "string" && !verifyPassword(password, storedHash)) {
+        return apiError(reply, 401, "INVALID_CREDENTIALS", "Invalid email or password.");
+      }
+
+      const activeRoles = principal.roles
+        .map((r) => r.roleCode)
+        .filter((r): r is RoleCode => roleCodes.includes(r as RoleCode));
+
+      const roles = activeRoles.length > 0 ? activeRoles : ["member"];
+      await audit(request, normalizedEmail, "auth.sign_in", "session", normalizedEmail);
+      const token = await signLocalToken(normalizedEmail, roles);
+
+      return reply.code(200).send({
+        token,
+        tokenType: "Bearer",
+        expiresIn: 86400,
+        user: {
+          userId: normalizedEmail,
+          email: normalizedEmail,
+          displayName: principal.profile?.displayName ?? (normalizedEmail.split("@")[0] ?? normalizedEmail),
+          roles,
+        },
+      });
+    }
+  );
+
+  app.post("/api/v1/auth/logout", {
+    preHandler: requireVerifiedIdentity,
+    schema: {
+      ...security,
+      tags: ["Identity & Access"],
+      summary: "Log out and invalidate the current session",
+      description: "Logs out the authenticated caller, writes an audit trail entry, and instructs client to clear credentials.",
+      response: {
+        200: {
+          type: "object",
+          properties: {
+            status: { type: "string" },
+            message: { type: "string" },
+            loggedOutAt: { type: "string", format: "date-time" },
+          },
+          required: ["status", "message", "loggedOutAt"],
+        },
+        401: errorSchema,
+      },
+    },
+  }, async (request, reply) => {
+    const userId = request.userId;
+    if (userId) {
+      await audit(request, userId, "auth.logout", "session", userId);
+    }
+    reply.header("Clear-Site-Data", '"cache", "cookies", "storage"');
+    return reply.code(200).send({
+      status: "logged_out",
+      message: "Session terminated successfully.",
+      loggedOutAt: new Date().toISOString(),
+    });
+  });
 }

@@ -1,47 +1,47 @@
-Fix routing, rendering performance, and authentication flows across the Mindspace application so that sign-in and account creation immediately redirect users to their role-specific dashboard with sub-second rendering and live user profile data displayed from PostgreSQL.
+Build completely separate, dedicated role-based dashboards for Member and Listener in the MindSpace frontend, keeping their workspaces strictly distinct with dedicated sub-pages and rich client-side mock data.
 
 Working directory: d:\Mindspace
 Integrity mode: development
 
 ## Requirements
 
-### R1. Error-Free Authentication Routing and Role Dashboards
-Fix sign-in and account creation routing so users are redirected immediately and cleanly to their corresponding dashboard without errors:
-- Doctor: `/en/bezs/telemedicine/doctor/dashboard`
-- Patient: `/en/bezs/telemedicine/patient`
-- Admin: `/en/bezs/telemedicine/admin/organizations`
+### R1. Role-Separated Workspaces & Routing
+Implement completely separate dashboard layouts and navigation for `member` and `listener` roles in `frontend/src/app/[locale]/(apps)/mindspace/` (analogous to patient vs doctor portals in healthcare applications). Provide dedicated routes (such as `/mindspace/member` and `/mindspace/listener`) and a role-switcher control in the layout to switch views during testing. Under no circumstances should member and listener features or navigation be combined into a single view.
 
-### R2. Sub-Second Rendering and UI Performance
-Eliminate console and runtime errors across the frontend and ensure dashboard views and route transitions render smoothly within 1 second (< 1s).
+### R2. Member Dashboard & Sub-pages
+Implement the Member workspace with dedicated sub-pages and interactive client mock state for:
+- My Support (overview of peer support connections and upcoming sessions)
+- Wellbeing (self-care metrics, wellness check-in summaries)
+- Mood tracking (daily mood logging, history charts, emotion tags)
+- Journal (entry list, creation/viewing modal or page, tags)
+- Goals (goal progress tracking, completion status)
+- Privacy & Consent (data sharing settings, anonymity preferences)
 
-### R3. Live Profile Data Integration
-Ensure user profile details (such as name and role) are persisted in PostgreSQL, loaded via backend FHIR services and active session, and displayed accurately in the frontend header and sidebar.
+### R3. Listener Dashboard & Sub-pages
+Implement the Listener workspace completely separate from the Member workspace, with dedicated sub-pages and interactive client mock state for:
+- Peer Support Queue (incoming member help requests with status and triage details)
+- Active Conversations (ongoing peer chats and conversation history)
+- Training Modules (learning modules, completion tracking, guidelines)
+- Availability Toggles (status control for active listening hours and intake status)
 
-### R4. Environment and Service Integration Constraints
-- Under no circumstances run `git push`. All changes must remain strictly local until explicitly commanded by the user.
-- Ensure all services (Next.js on port 4000, FastAPI fhir-server on port 8000, fhir-gql on port 8005, Postgres, Redis) bind cleanly without port collisions.
-
-## Verification Resources
-The team must create its own automated verification scripts, API tests, and test accounts across Doctor, Patient, and Admin roles to validate the end-to-end flow.
+### R4. Mock Data & Frontend State
+Populate all Member and Listener pages with realistic, rich mock data and client-side state interactions (e.g., toggles, filters, and mock actions). No live backend API changes or external services are required.
 
 ## Acceptance Criteria
 
-### Authentication & Routing
-- [ ] Account creation and sign-in for Doctor role redirect directly to `/en/bezs/telemedicine/doctor/dashboard` without route errors
-- [ ] Account creation and sign-in for Patient role redirect directly to `/en/bezs/telemedicine/patient` without route errors
-- [ ] Account creation and sign-in for Admin role redirect directly to `/en/bezs/telemedicine/admin/organizations` without route errors
-- [ ] No unhandled errors or blank screens in the browser console during the auth flow
+### Role Separation & Routing
+- [ ] Navigating to `/mindspace/member` displays exclusively Member features, layout, and sub-navigation with zero Listener elements.
+- [ ] Navigating to `/mindspace/listener` displays exclusively Listener features, layout, and sub-navigation with zero Member elements.
+- [ ] The layout includes an accessible role switcher or toggle control that reliably transitions between Member and Listener workspaces.
 
-### Performance & Rendering
-- [ ] Dashboard pages and transitions render in under 1 second (< 1s) verified programmatically
-- [ ] Zero unhandled JavaScript runtime errors in the browser console during navigation and dashboard rendering
+### Member Workspace Completeness
+- [ ] Member sub-pages render without runtime errors: My Support, Wellbeing, Mood tracking, Journal, Goals, and Privacy & Consent.
+- [ ] Each Member sub-page displays complete, context-appropriate mock data and interactive UI elements.
 
-### Profile Data Integration
-- [ ] User name and role fetched from PostgreSQL/session are displayed cleanly in the header and sidebar after sign-in
+### Listener Workspace Completeness
+- [ ] Listener sub-pages render without runtime errors: Peer Support Queue, Active Conversations, Training Modules, and Availability Toggles.
+- [ ] The availability toggle can be toggled interactively and reflects state in the UI.
+- [ ] Each Listener sub-page displays complete, context-appropriate mock data.
 
-### Automated Verification
-- [ ] Automated browser/API tests verify login, redirects, and render time criteria programmatically
-
-### Repository & Environment Constraints
-- [ ] No `git push` command is executed
-- [ ] All required services run without port collision
+### Verification
+- [ ] Automated tests (component tests or automated routing/rendering test scripts) pass and verify that all Member and Listener routes render successfully and maintain role separation.

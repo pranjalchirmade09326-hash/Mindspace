@@ -1,51 +1,46 @@
 # Original User Request
 
-## Initial Request — 2026-11-02T13:48:48Z
+## Initial Request — 2026-11-05T08:53:43Z
 
-Fix routing, rendering performance, and authentication flows across the Mindspace application so that sign-in and account creation immediately redirect users to their role-specific dashboard with sub-second rendering and live user profile data displayed from PostgreSQL.
+Build a production-ready marketing landing page at `http://localhost:4000/[locale]` and implement role-based authentication and routing flows for sign-up and sign-in across the MindSpace frontend and IAM services.
 
-Working directory: d:\Mindspace
+Working directory: D:\Mindspace
 Integrity mode: development
 
 ## Requirements
 
-### R1. Error-Free Authentication Routing and Role Dashboards
-Fix sign-in and account creation routing so users are redirected immediately and cleanly to their corresponding dashboard without errors:
-- Doctor: `/en/bezs/telemedicine/doctor/dashboard`
-- Patient: `/en/bezs/telemedicine/patient`
-- Admin: `/en/bezs/telemedicine/admin/organizations`
+### R1. Marketing Landing Page
+Build a complete, responsive marketing landing page in `frontend/src/app/[locale]/page.tsx` (e.g. `http://localhost:4000/en/`) replacing the immediate redirect to `/login`. The landing page must feature MindSpace branding, a hero section, key feature highlights/services, and clear call-to-action buttons ("Get Started" pointing to `/[locale]/signup` and "Sign In" pointing to `/[locale]/login`).
 
-### R2. Sub-Second Rendering and UI Performance
-Eliminate console and runtime errors across the frontend and ensure dashboard views and route transitions render smoothly within 1 second (< 1s).
+### R2. Sign-Up Registration and Direct Dashboard Routing
+Connect the user registration flow to the IAM auth service (`bezs-iam` on port 5001). Registering a new user must persist user data in the IAM database, assign the default role (`member`), establish the authenticated session cookie (`mindspace_session`), and redirect directly to the role dashboard (`/[locale]/mindspace/member`).
 
-### R3. Live Profile Data Integration
-Ensure user profile details (such as name and role) are persisted in PostgreSQL, loaded via backend FHIR services and active session, and displayed accurately in the frontend header and sidebar.
+### R3. Sign-In Role-Based Redirection
+Implement role detection upon user authentication and route signed-in users to their corresponding dashboard:
+- `member` (or `patient`) -> `/[locale]/mindspace/member`
+- `listener` (or `doctor`) -> `/[locale]/mindspace/listener`
+- `listener-supervisor` -> `/[locale]/mindspace/listener-supervisor`
+- `safety-operations` -> `/[locale]/mindspace/safety-operations`
+- `platform-administrator` (or `admin`) -> `/[locale]/mindspace/platform-administrator`
+- Fallback for unrecognized roles -> `/[locale]/mindspace`
 
-### R4. Environment and Service Integration Constraints
-- Under no circumstances run `git push`. All changes must remain strictly local until explicitly commanded by the user.
-- Ensure all services (Next.js on port 4000, FastAPI fhir-server on port 8000, fhir-gql on port 8005, Postgres, Redis) bind cleanly without port collisions.
-
-## Verification Resources
-The team must create its own automated verification scripts, API tests, and test accounts across Doctor, Patient, and Admin roles to validate the end-to-end flow.
+### R4. Session Creation and Authentication State Persistence
+Ensure session creation (including `mindspace_session` cookie via `/api/auth/dev-login` or the session provider) properly attaches role and user identity, ensuring dashboard routes do not bounce back to login or fail authentication checks. Existing local environment accounts and dev-login mechanisms can be used for authentication.
 
 ## Acceptance Criteria
 
-### Authentication & Routing
-- [ ] Account creation and sign-in for Doctor role redirect directly to `/en/bezs/telemedicine/doctor/dashboard` without route errors
-- [ ] Account creation and sign-in for Patient role redirect directly to `/en/bezs/telemedicine/patient` without route errors
-- [ ] Account creation and sign-in for Admin role redirect directly to `/en/bezs/telemedicine/admin/organizations` without route errors
-- [ ] No unhandled errors or blank screens in the browser console during the auth flow
+### Marketing Landing Page
+- [ ] Navigating to `http://localhost:4000/[locale]` (e.g. `/en/`) renders the complete marketing landing page (MindSpace branding, hero, key features, and CTAs) without redirecting to `/login`.
+- [ ] Clicking "Get Started" navigates to `/[locale]/signup` and clicking "Sign In" navigates to `/[locale]/login`.
 
-### Performance & Rendering
-- [ ] Dashboard pages and transitions render in under 1 second (< 1s) verified programmatically
-- [ ] Zero unhandled JavaScript runtime errors in the browser console during navigation and dashboard rendering
-
-### Profile Data Integration
-- [ ] User name and role fetched from PostgreSQL/session are displayed cleanly in the header and sidebar after sign-in
-
-### Automated Verification
-- [ ] Automated browser/API tests verify login, redirects, and render time criteria programmatically
-
-### Repository & Environment Constraints
-- [ ] No `git push` command is executed
-- [ ] All required services run without port collision
+### Registration and Authentication Routing
+- [ ] Submitting the sign-up form creates the user record in IAM, establishes a valid `mindspace_session` cookie with the `member` role, and navigates directly to `/[locale]/mindspace/member`.
+- [ ] Signing in as a user with each role navigates to that role's designated dashboard route:
+  - `member` (or `patient`) to `/[locale]/mindspace/member`
+  - `listener` (or `doctor`) to `/[locale]/mindspace/listener`
+  - `listener-supervisor` to `/[locale]/mindspace/listener-supervisor`
+  - `safety-operations` to `/[locale]/mindspace/safety-operations`
+  - `platform-administrator` (or `admin`) to `/[locale]/mindspace/platform-administrator`
+  - Unrecognized or generic role to `/[locale]/mindspace`
+- [ ] The `mindspace_session` cookie is established with valid role attributes, allowing authenticated access to dashboard routes without redirect loops back to login.
+- [ ] Programmatic verification tests written by the team validate all redirect paths and session persistence.

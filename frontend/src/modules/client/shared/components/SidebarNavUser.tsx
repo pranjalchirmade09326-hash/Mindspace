@@ -56,7 +56,7 @@ export function SidebarNavUser(props: SidebarNavUserProps) {
     .toUpperCase()
     .slice(0, 2);
 
-  const displayRole = role || "patient";
+  const displayRole = role || username || "member";
 
   return (
     <DropdownMenu>

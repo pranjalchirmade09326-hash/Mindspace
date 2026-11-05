@@ -50,7 +50,6 @@
  *  - Linear playback scheduler from the reference is preserved as-is.
  */
 
-"use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";

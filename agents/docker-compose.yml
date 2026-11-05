@@ -16,4 +16,4 @@ services:
       OPENSEARCH_URL: "http://host.docker.internal:9200"
       MEDICAL_DOCUMENT_INDEX: "clinical_documents"
       OPENSEARCH_SEARCH_PIPELINE: "hybrid-rrf-pipeline"
-    # restart: unless-stopped
+  
