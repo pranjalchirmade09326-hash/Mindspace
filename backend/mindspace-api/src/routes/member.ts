@@ -158,7 +158,7 @@ export async function registerMemberRoutes(app: FastifyInstance) {
     });
 
     if ("error" in provisioned) {
-      return sendApiError(reply, 403, provisioned.error, "An active MindSpace member account is required.");
+      return sendApiError(reply, 403, provisioned.error ?? "MEMBER_ACCOUNT_INACTIVE", "An active MindSpace member account is required.");
     }
 
     await recordAudit({

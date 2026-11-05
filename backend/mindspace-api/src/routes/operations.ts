@@ -153,6 +153,23 @@ export async function registerOperationRoutes(app: FastifyInstance) {
     return reply.code(201).send(profile);
   });
 
+  app.get("/api/v1/listeners/me/profile", {
+    preHandler: requireRoles(["listener"]),
+    schema: {
+      ...security,
+      tags: ["Listener Operations"],
+      summary: "Get the authenticated listener's application profile",
+      response: { 200: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+    },
+  }, async (request, reply) => {
+    const userId = actorId(request);
+    const profile = await prisma.listenerProfile.findUnique({ where: { userId } });
+    if (!profile) {
+      return apiError(reply, 404, "LISTENER_PROFILE_NOT_FOUND", "Listener profile was not found.");
+    }
+    return profile;
+  });
+
   app.post<{ Params: IdParams; Body: ListenerApprovalBody }>("/api/v1/operations/listeners/:id/decision", {
     preHandler: requireRoles(["listener_supervisor", "platform_administrator"]),
     schema: {
@@ -582,6 +599,23 @@ export async function registerOperationRoutes(app: FastifyInstance) {
       take: 100,
     });
   });
+
+    app.get("/api/v1/admin/self-help/content", {
+      preHandler: requireRoles(["platform_administrator"]),
+      schema: {
+        ...security,
+        tags: ["Administration"],
+        summary: "List all self-help content versions including drafts",
+        response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema },
+      },
+    }, async (request) => {
+      const actorUserId = actorId(request);
+      await audit(request, actorUserId, "admin.self_help.list", "self_help_content");
+      return prisma.selfHelpContent.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      });
+    });
 
     app.post<{ Body: ContentBody }>("/api/v1/admin/self-help/content", {
       preHandler: requireRoles(["platform_administrator"]),

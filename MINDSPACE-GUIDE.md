@@ -399,3 +399,6 @@ MindSpace dashboards abhi **static placeholder** hain — `dashboard-data.ts` me
 ---
 
 *Last updated: 2026-11-05*
+
+Running: mindspace-api :8080 ✅, agents :8018 ✅, IAM :5001 ✅, frontend :4000 (compile ho raha tha)
+
