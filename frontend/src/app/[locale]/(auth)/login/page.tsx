@@ -42,7 +42,7 @@ export default function LoginPage() {
       const { data, error } = await authClient.signIn.email({
         email: email.trim().toLowerCase(),
         password,
-        callbackURL: "/bezs/telemedicine/patient",
+        callbackURL: "/mindspace/member",
         rememberMe: true,
       });
 
@@ -53,11 +53,19 @@ export default function LoginPage() {
 
       toast.success("Signed in successfully! Redirecting…");
 
-      // The session cookie is set by BetterAuth automatically.
-      // Redirect to the active role redirect URL if present, else default dashboard.
-      const redirectUrl =
-        (data as any)?.session?.activeRoleRedirectUrl ?? "/bezs/telemedicine/patient";
-      router.push(redirectUrl as any);
+      // Create mindspace_session cookie so the app layout recognises this user.
+      await fetch("/api/auth/dev-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: "member",
+          name: (data?.user?.name ?? ""),
+          email: (data?.user?.email ?? email.trim().toLowerCase()),
+          redirectUrl: "/mindspace/member",
+        }),
+      });
+
+      router.push("/en/mindspace/member" as any);
     } catch (err: any) {
       toast.error(err?.message ?? "An unexpected error occurred.");
     } finally {

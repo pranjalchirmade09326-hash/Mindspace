@@ -50,7 +50,7 @@ export default function SignupPage() {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
-        callbackURL: "/bezs/telemedicine/patient/intake/start",
+        callbackURL: "/intake",
       });
 
       if (error) {
@@ -60,9 +60,20 @@ export default function SignupPage() {
 
       toast.success("Account created! Redirecting…");
 
-      // Redirect: BetterAuth sets the session cookie automatically.
-      // If email verification is required the user lands on a verify page instead.
-      router.push("/bezs/telemedicine/patient/intake/start" as any);
+      // Create a mindspace_session cookie so the app layout (getServerSession)
+      // recognises this user without needing a full OAuth flow.
+      await fetch("/api/auth/dev-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: "member",
+          name: (data?.user?.name ?? name.trim()),
+          email: (data?.user?.email ?? email.trim().toLowerCase()),
+          redirectUrl: "/mindspace/member",
+        }),
+      });
+
+      router.push("/en/mindspace/member" as any);
     } catch (err: any) {
       toast.error(err?.message ?? "An unexpected error occurred.");
     } finally {

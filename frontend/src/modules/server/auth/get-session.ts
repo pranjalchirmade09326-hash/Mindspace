@@ -2,33 +2,52 @@ import { headers, cookies } from "next/headers";
 import { cache } from "react";
 import { AuthResponse } from "./types";
 
-export function getDevSession(role = "doctor"): AuthResponse {
-  const normalizedRole = (role || "doctor").toString().trim().toLowerCase();
-  const cleanRole =
-    normalizedRole === "doctor" || normalizedRole === "admin" || normalizedRole === "patient"
-      ? normalizedRole
-      : normalizedRole.includes("doctor")
-      ? "doctor"
-      : normalizedRole.includes("admin")
-      ? "admin"
-      : "patient";
-  const isDoctor = cleanRole === "doctor";
-  const isAdmin = cleanRole === "admin";
-  const name = isDoctor
-    ? "Dr. John Smith"
-    : isAdmin
-    ? "System Administrator"
-    : "Sarah Jenkins";
-  const email = isDoctor
-    ? "doctor@mindspace.app"
-    : isAdmin
-    ? "admin@mindspace.app"
-    : "patient@mindspace.app";
-  const redirectUrl = isDoctor
-    ? "/bezs/telemedicine/doctor/dashboard"
-    : isAdmin
-    ? "/bezs/telemedicine/admin/organizations"
-    : "/bezs/telemedicine/patient";
+/**
+ * MindSpace role ids — mirrors the dashboards defined in
+ * modules/client/mindspace-dashboard/dashboard-data.ts.
+ */
+const MINDSpace_ROLES = [
+  "member",
+  "listener",
+  "listener-supervisor",
+  "safety-operations",
+  "platform-administrator",
+] as const;
+
+type MindspaceRole = (typeof MINDSpace_ROLES)[number];
+
+const ROLE_LABELS: Record<MindspaceRole, { name: string; email: string }> = {
+  member: { name: "Demo Member", email: "member@mindspace.app" },
+  listener: { name: "Demo Listener", email: "listener@mindspace.app" },
+  "listener-supervisor": {
+    name: "Demo Supervisor",
+    email: "supervisor@mindspace.app",
+  },
+  "safety-operations": {
+    name: "Demo Safety Ops",
+    email: "safety@mindspace.app",
+  },
+  "platform-administrator": {
+    name: "Demo Administrator",
+    email: "admin@mindspace.app",
+  },
+};
+
+/**
+ * Builds a local dev session for one of the five MindSpace roles.
+ * Used only outside production so the app shell can be previewed without
+ * a live identity provider.
+ *
+ * @param role - MindSpace role id (defaults to "member").
+ * @returns A synthetic Better-Auth-shaped session response.
+ */
+export function getDevSession(role = "member"): AuthResponse {
+  const normalized = (role || "member").toString().trim().toLowerCase();
+  const cleanRole = (MINDSpace_ROLES as readonly string[]).includes(normalized)
+    ? (normalized as MindspaceRole)
+    : "member";
+  const { name, email } = ROLE_LABELS[cleanRole];
+  const redirectUrl = `/mindspace/${cleanRole}`;
 
   return {
     user: {
@@ -59,13 +78,13 @@ export function getDevSession(role = "doctor"): AuthResponse {
       activeOrganizationId: "org-default-01",
       activeTeamId: null,
       impersonatedBy: null,
-      apps: ["telemedicine", "emr", "ai-hub"],
+      apps: ["mindspace"],
       permissions: ["*"],
       organizations: [
         {
           id: "org-default-01",
-          name: "MindSpace Healthcare",
-          slug: "mindspace-health",
+          name: "MindSpace",
+          slug: "mindspace",
           logo: null,
         },
       ],
@@ -74,7 +93,7 @@ export function getDevSession(role = "doctor"): AuthResponse {
       activeRole: cleanRole,
       activeRoleRedirectUrl: redirectUrl,
     },
-  };
+  } as AuthResponse;
 }
 
 export const getServerSession = cache(async function getServerSession(): Promise<AuthResponse | null> {

@@ -19,7 +19,7 @@ import { NavGroup } from "./NavGroup";
 import { AppTitle } from "./AppTitle";
 import { SidebarNavUser } from "../SidebarNavUser";
 import { type NavGroup as NavGroupProps } from "./types";
-import { settingsSidebarData, telemedicineSidebarData } from "./menu-datas";
+import { mindspaceSidebarData } from "./menu-datas";
 
 type TUser = {
   name: string;
@@ -85,69 +85,6 @@ function buildNavGroups(app: ContextApp): NavGroupProps[] {
     }));
 }
 
-const patientIntakeLinks: NavGroupProps["items"] = [
-  {
-    title: "Choose an intake",
-    url: "/bezs/telemedicine/patient/intake/start",
-    icon: "heart",
-  },
-  {
-    title: "Chat intake",
-    url: "/bezs/telemedicine/patient/intake",
-    icon: "message-circle",
-  },
-  {
-    title: "Voice intake",
-    url: "/bezs/telemedicine/patient/appointments/intake",
-    icon: "mic",
-  },
-];
-
-function withPatientIntakeLinks(groups: NavGroupProps[]): NavGroupProps[] {
-  const missingLinks = patientIntakeLinks.filter(
-    (link) =>
-      !groups.some((group) =>
-        group.items.some(
-          (item) =>
-            ("url" in item && item.url === link.url) ||
-            ("items" in item &&
-              item.items.some((subItem) => subItem.url === link.url)),
-        ),
-      ),
-  );
-
-  if (missingLinks.length === 0) return groups;
-
-  const patientGroupIndex = groups.findIndex((group) =>
-    group.title.toLowerCase().includes("patient"),
-  );
-
-  if (patientGroupIndex === -1) {
-    return [...groups, { title: "Your care", items: missingLinks }];
-  }
-
-  return groups.map((group, index) =>
-    index === patientGroupIndex
-      ? { ...group, items: [...group.items, ...missingLinks] }
-      : group,
-  );
-}
-
-function getRoleNavGroups(role: string | null | undefined): NavGroupProps[] {
-  const normalizedRole = role?.toLowerCase() ?? "";
-  const targetGroup = normalizedRole.includes("patient")
-    ? "patient portal"
-    : normalizedRole.includes("admin")
-      ? "administration"
-      : "doctor portal";
-
-  return (
-    telemedicineSidebarData.navGroups.filter(
-      (group) => group.title.toLowerCase() === targetGroup,
-    ) as NavGroupProps[]
-  );
-}
-
 const SKELETON_COUNTS = [3, 2, 2, 1];
 
 function NavSkeleton() {
@@ -180,21 +117,13 @@ export function MenuBar(user: TUser) {
   const pathname = usePathname();
 
   const segments = pathname.split("/").filter(Boolean);
-  const isSettings = pathname.includes("/settings");
-  const currentSlug =
-    segments.find((s) => s === "telemedicine" || s === "settings") ??
-    (segments[1] ?? "");
+  const currentSlug = segments.find((s) => s === "mindspace" || s === "intake") ?? (segments[1] ?? "");
 
   const currentApp = allApps.find((a) => a.slug === currentSlug);
-  const baseNavGroups: NavGroupProps[] = isSettings
-    ? (settingsSidebarData.navGroups as NavGroupProps[])
-    : currentApp && buildNavGroups(currentApp).length > 0
+  const navGroups: NavGroupProps[] =
+    currentApp && buildNavGroups(currentApp).length > 0
       ? buildNavGroups(currentApp)
-      : getRoleNavGroups(user.role);
-  const navGroups =
-    !isSettings && pathname.includes("/telemedicine/patient")
-      ? withPatientIntakeLinks(baseNavGroups)
-      : baseNavGroups;
+      : (mindspaceSidebarData.navGroups as NavGroupProps[]);
 
   useEffect(() => {
     let isSubscribed = true;
@@ -247,7 +176,7 @@ export function MenuBar(user: TUser) {
         <AppTitle />
       </SidebarHeader>
       <SidebarContent>
-        {!isSettings && isLoading ? (
+        {isLoading ? (
           <NavSkeleton />
         ) : (
           navGroups.map((props) => <NavGroup key={props.title} {...props} />)

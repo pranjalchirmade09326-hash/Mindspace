@@ -21,6 +21,7 @@ import {
   type MindspaceRoleId,
 } from "./dashboard-data";
 import type { LiveDashboardData } from "@/modules/server/mindspace/dashboard-data";
+import { DemoRoleButtons } from "./DemoRoleButtons";
 
 function DemoBanner({ live }: { live?: boolean }) {
   return (
@@ -172,14 +173,14 @@ function DashboardHome({
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
             <Link
-              href="/bezs/telemedicine/patient/intake"
+              href="/intake/chat"
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               Chat intake
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
             <Link
-              href="/bezs/telemedicine/patient/appointments/intake"
+              href="/intake/voice"
               className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
             >
               Voice intake
@@ -336,6 +337,29 @@ function SectionPage({
   );
 }
 
+function AuthRequired({ role }: { role: { title: string; shortTitle: string } }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Sign in required</CardTitle>
+        <CardDescription>
+          The {role.shortTitle} dashboard shows live records from your MindSpace
+          account. Sign in to continue — sample data is not shown.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Sign in
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function MindspaceRoleDashboard({
   roleId,
   live,
@@ -345,6 +369,18 @@ export function MindspaceRoleDashboard({
 }) {
   const role = getDashboardRole(roleId);
   if (!role) notFound();
+
+  // Live fetch was attempted and failed (no session / API unreachable) —
+  // show a sign-in prompt instead of sample records.
+  if (live && !live.live) {
+    return (
+      <div className="space-y-6 py-2">
+        <RoleSwitcher activeRole={role.id} />
+        <PortalHeader role={role} />
+        <AuthRequired role={role} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 py-2">
@@ -367,6 +403,16 @@ export function MindspaceRoleSection({
   const role = getDashboardRole(roleId);
   const section = role?.sections.find((item) => item.id === sectionId);
   if (!role || !section) notFound();
+
+  if (live && !live.live) {
+    return (
+      <div className="space-y-6 py-2">
+        <RoleSwitcher activeRole={role.id} />
+        <PortalHeader role={role} section={section} />
+        <AuthRequired role={role} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 py-2">
@@ -418,32 +464,19 @@ export function MindspaceWorkspaceIndex() {
         })}
       </div>
 
-      {/* Demo sign-in shortcuts — jump straight into the member or listener
-          workspace without a full auth round-trip. Live data still requires
-          a real MindSpace session; otherwise sample data is shown. */}
+      {/* Demo sign-in — picks a MindSpace role and creates a local dev
+          session, then lands on that role's dashboard. Live API data still
+          requires the MindSpace identity provider to be reachable. */}
       <Card className="border-dashed">
         <CardHeader>
           <CardTitle className="text-base">Demo sign-in</CardTitle>
           <CardDescription>
-            Preview the member and listener experiences without signing in.
-            Connect a MindSpace account to see live records.
+            Choose a role to preview its workspace. Sign in with a real
+            MindSpace account to load live records.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-3">
-          <Link
-            href="/mindspace/member"
-            className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
-          >
-            <Heart className="size-4" aria-hidden="true" />
-            Continue as Member
-          </Link>
-          <Link
-            href="/mindspace/listener"
-            className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium hover:bg-muted"
-          >
-            <Headphones className="size-4" aria-hidden="true" />
-            Continue as Listener
-          </Link>
+        <CardContent>
+          <DemoRoleButtons />
         </CardContent>
       </Card>
 
