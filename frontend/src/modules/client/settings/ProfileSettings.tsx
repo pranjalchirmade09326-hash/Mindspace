@@ -94,7 +94,7 @@ export default function ProfileSettings({ user }: { user: User }) {
 
   useEffect(() => {
     authClient.listAccounts().then(({ data }) => {
-      if (data) setAccounts(data as unknown as Account[]);
+      if (data) setAccounts(data as Account[]);
       setAccountsLoading(false);
     });
   }, []);
@@ -116,7 +116,7 @@ export default function ProfileSettings({ user }: { user: User }) {
   }
 
   async function onUsernameSubmit(values: UsernameForm) {
-    const { error } = await authClient.updateUser({ username: values.username } as never);
+    const { error } = await authClient.updateUser({ username: values.username });
     if (error) {
       toast.error(error.message ?? "Failed to update username.");
     } else {

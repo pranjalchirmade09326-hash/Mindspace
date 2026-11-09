@@ -2,46 +2,45 @@ import { headers, cookies } from "next/headers";
 import { cache } from "react";
 import { AuthResponse } from "./types";
 
-/**
- * MindSpace role ids — mirrors the dashboards defined in
- * modules/client/mindspace-dashboard/dashboard-data.ts.
- */
-const MINDSpace_ROLES = ["member", "listener"] as const;
-
-/**
- * Builds a local dev session from real sign-in credentials captured at login.
- * The identity comes from the credentials the user actually entered — no
- * fabricated "Demo" profile values.
- *
- * @param role   - MindSpace role id ("member" or "listener").
- * @param name   - Display name captured from the sign-in form.
- * @param email  - Email captured from the sign-in form.
- * @returns A Better-Auth-shaped session response for the given credentials.
- */
-export function getDevSession(
-  role: string,
-  name?: string,
-  email?: string,
-): AuthResponse {
-  const normalized = (role || "member").toString().trim().toLowerCase();
-  const cleanRole = (MINDSpace_ROLES as readonly string[]).includes(normalized)
-    ? (normalized as (typeof MINDSpace_ROLES)[number])
-    : ("member" as (typeof MINDSpace_ROLES)[number]);
-  const displayName = (name ?? "").trim() || "Member";
-  const displayEmail = (email ?? "").trim();
-  const redirectUrl = `/mindspace/${cleanRole}`;
+export function getDevSession(role = "doctor"): AuthResponse {
+  const normalizedRole = (role || "doctor").toString().trim().toLowerCase();
+  const cleanRole =
+    normalizedRole === "doctor" || normalizedRole === "admin" || normalizedRole === "patient"
+      ? normalizedRole
+      : normalizedRole.includes("doctor")
+      ? "doctor"
+      : normalizedRole.includes("admin")
+      ? "admin"
+      : "patient";
+  const isDoctor = cleanRole === "doctor";
+  const isAdmin = cleanRole === "admin";
+  const name = isDoctor
+    ? "Dr. John Smith"
+    : isAdmin
+    ? "System Administrator"
+    : "Sarah Jenkins";
+  const email = isDoctor
+    ? "doctor@mindspace.app"
+    : isAdmin
+    ? "admin@mindspace.app"
+    : "patient@mindspace.app";
+  const redirectUrl = isDoctor
+    ? "/bezs/telemedicine/doctor/dashboard"
+    : isAdmin
+    ? "/bezs/telemedicine/admin/organizations"
+    : "/bezs/telemedicine/patient";
 
   return {
     user: {
-      id: `usr-${cleanRole}-${displayEmail ? displayEmail.split("@")[0] : "user"}`,
-      name: displayName,
-      email: displayEmail,
+      id: `usr-${cleanRole}-01`,
+      name,
+      email,
       emailVerified: true,
       image: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       username: cleanRole,
-      displayUsername: displayName,
+      displayUsername: name,
       twoFactorEnabled: false,
       role: cleanRole,
       banned: false,
@@ -49,24 +48,24 @@ export function getDevSession(
       banExpires: null,
     },
     session: {
-      id: `sess-${cleanRole}-${displayEmail ? displayEmail.split("@")[0] : "user"}`,
+      id: `sess-${cleanRole}-01`,
       token: "dev-jwt-token",
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ipAddress: "127.0.0.1",
       userAgent: "Local Dev Browser",
-      userId: `usr-${cleanRole}-${displayEmail ? displayEmail.split("@")[0] : "user"}`,
+      userId: `usr-${cleanRole}-01`,
       activeOrganizationId: "org-default-01",
       activeTeamId: null,
       impersonatedBy: null,
-      apps: ["mindspace"],
+      apps: ["telemedicine", "emr", "ai-hub"],
       permissions: ["*"],
       organizations: [
         {
           id: "org-default-01",
-          name: "MindSpace",
-          slug: "mindspace",
+          name: "MindSpace Healthcare",
+          slug: "mindspace-health",
           logo: null,
         },
       ],
@@ -75,7 +74,7 @@ export function getDevSession(
       activeRole: cleanRole,
       activeRoleRedirectUrl: redirectUrl,
     },
-  } as AuthResponse;
+  };
 }
 
 export const getServerSession = cache(async function getServerSession(): Promise<AuthResponse | null> {
@@ -95,13 +94,16 @@ export const getServerSession = cache(async function getServerSession(): Promise
 
   // 2. Fall back to external BetterAuth if configured and reachable
   try {
-    const authUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL;
+    const authUrl =
+      process.env.BETTER_AUTH_INTERNAL_URL ||
+      process.env.BETTER_AUTH_URL ||
+      process.env.NEXT_PUBLIC_BETTER_AUTH_URL;
     if (authUrl && authUrl.startsWith("http")) {
       const hdrs = await headers();
       const cookie = hdrs.get("cookie") || "";
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 200);
+      const timeout = setTimeout(() => controller.abort(), 2000);
 
       try {
         const res = await fetch(`${authUrl}/api/auth/get-session`, {

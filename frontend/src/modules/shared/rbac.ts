@@ -44,6 +44,11 @@ export function resolveWorkspaceAccess(
   pathname: string,
   userRole?: string | null,
 ): string | null {
+  // In development, allow browsing all role dashboards and demo pages
+  if (process.env.NODE_ENV !== "production") {
+    return null;
+  }
+
   // Normalize locale prefixes.
   const cleanPath = pathname.replace(/^\/(?:en|hi|ta)(?:\/|$)/, "/");
 

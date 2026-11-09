@@ -72,7 +72,7 @@ export default function SessionsSettings({ currentToken }: { currentToken: strin
 
   useEffect(() => {
     authClient.listSessions().then(({ data }) => {
-      if (data) setSessions(data as unknown as SessionItem[]);
+      if (data) setSessions(data as SessionItem[]);
       setLoading(false);
     });
   }, []);

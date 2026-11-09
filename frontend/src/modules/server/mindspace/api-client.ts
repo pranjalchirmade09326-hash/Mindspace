@@ -30,10 +30,17 @@ async function requestBetterAuth(path: string): Promise<Response> {
     throw new Error("BETTER_AUTH_URL is not configured.");
   }
   const cookie = (await headers()).get("cookie") ?? "";
-  return fetch(new URL(path, authUrl), {
-    headers: { cookie },
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 800); // Fast 800ms timeout
+  try {
+    return await fetch(new URL(path, authUrl), {
+      headers: { cookie },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function getMindspaceAuthSession(): Promise<BetterAuthIdentity | null> {
@@ -107,16 +114,23 @@ export async function createMindspaceApiClient() {
 
   const token = await getMindspaceBearerToken(identity.id);
   const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
-    const response = await fetch(new URL(path, baseUrl), {
-      ...init,
-      headers: {
-        ...init?.headers,
-        Authorization: `Bearer ${token}`,
-        ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      },
-      cache: "no-store",
-    });
-    return readApiResponse<T>(response);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1000);
+    try {
+      const response = await fetch(new URL(path, baseUrl), {
+        ...init,
+        headers: {
+          ...init?.headers,
+          Authorization: `Bearer ${token}`,
+          ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        },
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      return readApiResponse<T>(response);
+    } finally {
+      clearTimeout(timeoutId);
+    }
   };
 
   await request("/api/v1/members/me/provision", { method: "POST" });

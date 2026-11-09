@@ -1,9 +1,6 @@
-/**
- * Shared utility helpers used across both client and server modules.
- * Keep this file framework-agnostic — no Next.js, no server-only imports.
- */
 import { formatDistanceToNow, differenceInDays } from "date-fns";
 import { formatInTimeZone, toZonedTime, fromZonedTime } from "date-fns-tz";
+import type { TPatientResponse } from "@/modules/entities/schemas/patient";
 
 /**
  * The single timezone every date/time computation and display in this
@@ -223,3 +220,111 @@ export function getProfileInitials(name?: string): string {
   return words[0][0].toUpperCase() + words[1][0].toUpperCase();
 }
 
+/**
+ * Derives a display name string from a Patient FHIR record.
+ * Uses `name[0].text` when available, otherwise builds from prefix + given + family.
+ *
+ * @param patient - Full Patient FHIR response.
+ * @returns Formatted display name, or empty string if no name data.
+ */
+export function formatPatientName(patient: TPatientResponse): string {
+  const n = patient.name?.[0];
+  if (!n) return "";
+  if (n.text) return n.text;
+  const parts = [...(n.prefix ?? []), ...(n.given ?? []), n.family].filter(Boolean);
+  return parts.join(" ");
+}
+
+/**
+ * Calculates a patient's age in whole years from their FHIR birth_date.
+ *
+ * @param birthDate - ISO 8601 date string (e.g. "1990-05-14"), or nullish.
+ * @returns Age in whole years, or null if birthDate is missing/invalid.
+ */
+export function getPatientAge(birthDate?: string | null): number | null {
+  if (!birthDate) return null;
+  const dob = toZonedTime(new Date(birthDate), APP_TIMEZONE);
+  if (Number.isNaN(dob.getTime())) return null;
+  const now = nowIST();
+  let age = now.getFullYear() - dob.getFullYear();
+  const hasHadBirthdayThisYear =
+    now.getMonth() > dob.getMonth() ||
+    (now.getMonth() === dob.getMonth() && now.getDate() >= dob.getDate());
+  if (!hasHadBirthdayThisYear) age -= 1;
+  return age >= 0 ? age : null;
+}
+
+/**
+ * Extracts the preferred email and phone number from a Patient's telecom array.
+ * When more than one entry shares a system, the lowest `rank` wins (FHIR
+ * convention: rank 1 = most-preferred contact point).
+ *
+ * @param telecom - Patient.telecom array from the FHIR response, or nullish.
+ * @returns Object with `email` and `phone`, each null if not present.
+ */
+export function getPatientContact(
+  telecom: TPatientResponse["telecom"],
+): { email: string | null; phone: string | null } {
+  const pick = (system: string) => {
+    const matches = (telecom ?? []).filter((t) => t?.system === system && t?.value);
+    if (matches.length === 0) return null;
+    matches.sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
+    return matches[0].value ?? null;
+  };
+  return { email: pick("email"), phone: pick("phone") };
+}
+
+/**
+ * Builds a one-line context prefix carrying the patient's known name, age,
+ * and contact details. Meant to be prepended (server-side, once) to the
+ * first message of a new AI intake/consultation chat session — the backing
+ * agents have no access to the app's Patient records, so without this they
+ * re-ask for demographic details the app already has on file every time a
+ * new conversation starts.
+ *
+ * @param patient - Full Patient FHIR response (birth_date + telecom are read).
+ * @param displayName - Patient's display name (Better Auth account name).
+ * @returns A "[Patient context: ...]" string, or "" if no data is available.
+ */
+export function buildPatientContextPrefix(
+  patient: TPatientResponse | null | undefined,
+  displayName: string,
+): string {
+  const parts: string[] = [];
+  if (displayName) parts.push(`name=${displayName}`);
+  const age = getPatientAge(patient?.birth_date);
+  if (age != null) parts.push(`age=${age}`);
+  const { email, phone } = getPatientContact(patient?.telecom);
+  if (email) parts.push(`email=${email}`);
+  if (phone) parts.push(`phone=${phone}`);
+  return parts.length ? `[Patient context: ${parts.join(", ")}]` : "";
+}
+
+/**
+ * Derives a display name string for a MindSpace Member.
+ */
+export function formatMemberName(member?: { name?: string | null; displayName?: string | null }): string {
+  if (!member) return "Member";
+  return member.displayName || member.name || "Member";
+}
+
+/**
+ * Derives a display name string for a MindSpace Peer Listener.
+ */
+export function formatListenerName(listener?: { name?: string | null; displayName?: string | null }): string {
+  if (!listener) return "Peer Listener";
+  return listener.displayName || listener.name || "Peer Listener";
+}
+
+/**
+ * Builds a one-line context prefix carrying the member's known display name and locale.
+ */
+export function buildMemberContextPrefix(
+  displayName?: string | null,
+  locale?: string,
+): string {
+  const parts: string[] = [];
+  if (displayName) parts.push(`member=${displayName}`);
+  if (locale) parts.push(`locale=${locale}`);
+  return parts.length ? `[MindSpace Member context: ${parts.join(", ")}]` : "";
+}

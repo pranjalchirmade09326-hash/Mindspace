@@ -50,6 +50,7 @@
  *  - Linear playback scheduler from the reference is preserved as-is.
  */
 
+"use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "sonner";
@@ -90,6 +91,8 @@ interface VoiceIntakeTestProps {
   basePath: string;
   /** Patient's display name — shown in the header and as avatar initial. */
   userName: string;
+  /** Optional pre-formatted context forwarded to the voice agent. */
+  patientContext?: string;
 }
 
 /** Call lifecycle status — drives Start/End Call button and mic pipeline. */
@@ -186,11 +189,13 @@ function scheduleAudioChunk(
  * @param intakeId      - MindSpace intake UUID created after consent.
  * @param basePath      - Locale-prefixed base path.
  * @param userName      - Patient display name used for the avatar initial.
+ * @param patientContext - Optional context forwarded to the voice agent.
  */
 export function VoiceIntakeTest({
   intakeId,
   basePath,
   userName,
+  patientContext,
 }: VoiceIntakeTestProps) {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [agentPhase, setAgentPhase] = useState<AgentPhase>("idle");
@@ -200,10 +205,6 @@ export function VoiceIntakeTest({
   const [endingPhase, setEndingPhase] = useState<EndingPhase>("idle");
   const [showModal, setShowModal] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-
-  // Lightweight member context forwarded to the voice agent so it does not
-  // re-ask for the display name already known to the app.
-  const patientContext = userName ? `[Patient context: name=${userName}]` : "";
 
   // WebSocket
   const wsRef = useRef<WebSocket | null>(null);

@@ -79,7 +79,7 @@ export async function registerPeerSupportRoutes(app: FastifyInstance) {
           },
         },
       },
-      response: { 201: { type: "object" }, 401: errorSchema, 403: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -112,7 +112,7 @@ export async function registerPeerSupportRoutes(app: FastifyInstance) {
       ...security,
       tags: ["Peer Support"],
       summary: "List the authenticated member's peer-support requests",
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema },
     },
   }, async (request) => {
     const memberId = actorId(request);
@@ -132,7 +132,7 @@ export async function registerPeerSupportRoutes(app: FastifyInstance) {
       tags: ["Peer Support"],
       summary: "Cancel an open peer-support request",
       params: { type: "object", required: ["id"], properties: { id: { type: "string", pattern: uuidPattern } } },
-      response: { 200: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
+      response: { 200: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -176,7 +176,7 @@ export async function registerPeerSupportRoutes(app: FastifyInstance) {
           listenerId: { type: "string", pattern: uuidPattern },
         },
       },
-      response: { 201: { type: "object" }, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
     },
   }, async (request, reply) => {
     const operatorId = actorId(request);
@@ -251,7 +251,7 @@ export async function registerPeerSupportRoutes(app: FastifyInstance) {
       tags: ["Peer Support"],
       summary: "Accept an offer assigned to the authenticated listener",
       params: { type: "object", required: ["id"], properties: { id: { type: "string", pattern: uuidPattern } } },
-      response: { 201: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
     },
   }, async (request, reply) => {
     const listenerUserId = actorId(request);
@@ -330,7 +330,7 @@ export async function registerPeerSupportRoutes(app: FastifyInstance) {
       ...security,
       tags: ["Listener Operations"],
       summary: "List peer-support offers assigned to the authenticated listener",
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
     },
   }, async (request, reply) => {
     const userId = actorId(request);
@@ -363,7 +363,7 @@ export async function registerPeerSupportRoutes(app: FastifyInstance) {
       tags: ["Peer Support"],
       summary: "Decline an offer assigned to the authenticated listener",
       params: { type: "object", required: ["id"], properties: { id: { type: "string", pattern: uuidPattern } } },
-      response: { 200: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+      response: { 200: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
     },
   }, async (request, reply) => {
     const userId = actorId(request);
@@ -384,7 +384,7 @@ export async function registerPeerSupportRoutes(app: FastifyInstance) {
       ...security,
       tags: ["Peer Support"],
       summary: "List conversations in which the authenticated user participates",
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema },
     },
   }, async (request) => {
     const userId = actorId(request);
@@ -405,7 +405,7 @@ export async function registerPeerSupportRoutes(app: FastifyInstance) {
       tags: ["Peer Support"],
       summary: "Read messages for a participant-owned conversation",
       params: { type: "object", required: ["id"], properties: { id: { type: "string", pattern: uuidPattern } } },
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
     },
   }, async (request, reply) => {
     const userId = actorId(request);
@@ -448,7 +448,7 @@ export async function registerPeerSupportRoutes(app: FastifyInstance) {
         required: ["content"],
         properties: { content: { type: "string", minLength: 1, maxLength: 12000 } },
       },
-      response: { 201: { type: "object" }, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
     },
   }, async (request, reply) => {
     const userId = actorId(request);
@@ -505,7 +505,7 @@ export async function registerPeerSupportRoutes(app: FastifyInstance) {
       tags: ["Peer Support"],
       summary: "Close a conversation as one of its participants",
       params: { type: "object", required: ["id"], properties: { id: { type: "string", pattern: uuidPattern } } },
-      response: { 200: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+      response: { 200: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
     },
   }, async (request, reply) => {
     const userId = actorId(request);
@@ -539,7 +539,7 @@ export async function registerPeerSupportRoutes(app: FastifyInstance) {
           details: { type: "string", maxLength: 8000 },
         },
       },
-      response: { 201: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
     },
   }, async (request, reply) => {
     const userId = actorId(request);
@@ -590,7 +590,7 @@ export async function registerPeerSupportRoutes(app: FastifyInstance) {
           feedback: { type: "string", maxLength: 8000 },
         },
       },
-      response: { 201: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);

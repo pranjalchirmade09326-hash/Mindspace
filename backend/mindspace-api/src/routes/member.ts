@@ -157,8 +157,8 @@ export async function registerMemberRoutes(app: FastifyInstance) {
       return { userId, roles, displayName: profile.displayName };
     });
 
-    if ("error" in provisioned) {
-      return sendApiError(reply, 403, provisioned.error ?? "MEMBER_ACCOUNT_INACTIVE", "An active MindSpace member account is required.");
+    if ("error" in provisioned && provisioned.error) {
+      return sendApiError(reply, 403, provisioned.error, "An active MindSpace member account is required.");
     }
 
     await recordAudit({
@@ -307,9 +307,9 @@ export async function registerMemberRoutes(app: FastifyInstance) {
             locale: { type: "string" },
             timezone: { type: "string" },
             preferredLanguages: { type: "array", items: { type: "string" } },
-            accessibility: { type: "object" },
-            communication: { type: "object" },
-            supportPreferences: { type: "object" },
+            accessibility: { type: "object", additionalProperties: true },
+            communication: { type: "object", additionalProperties: true },
+            supportPreferences: { type: "object", additionalProperties: true },
             updatedAt: { type: "string", format: "date-time" },
           },
           required: ["userId", "locale", "timezone", "preferredLanguages", "accessibility", "communication", "supportPreferences", "updatedAt"],
@@ -354,7 +354,7 @@ export async function registerMemberRoutes(app: FastifyInstance) {
           supportPreferences: objectValueSchema,
         },
       },
-      response: { 200: { type: "object" }, 400: errorResponse, 401: errorResponse, 403: errorResponse },
+      response: { 200: { type: "object", additionalProperties: true }, 400: errorResponse, 401: errorResponse, 403: errorResponse },
     },
   }, async (request) => {
     const userId = actorId(request);
@@ -388,7 +388,7 @@ export async function registerMemberRoutes(app: FastifyInstance) {
               id: { type: "string", format: "uuid" },
               purposeCode: { type: "string" },
               recipientScope: { type: ["string", "null"] },
-              dataScope: { type: "object" },
+              dataScope: { type: "object", additionalProperties: true },
               policyVersion: { type: "string" },
               consentState: { type: "string", enum: ["granted", "withdrawn", "denied", "expired"] },
               capturedAt: { type: "string", format: "date-time" },
@@ -444,7 +444,7 @@ export async function registerMemberRoutes(app: FastifyInstance) {
             id: { type: "string", format: "uuid" },
             purposeCode: { type: "string" },
             recipientScope: { type: ["string", "null"] },
-            dataScope: { type: "object" },
+            dataScope: { type: "object", additionalProperties: true },
             policyVersion: { type: "string" },
             consentState: { type: "string" },
             capturedAt: { type: "string", format: "date-time" },
@@ -497,7 +497,7 @@ export async function registerMemberRoutes(app: FastifyInstance) {
       ...protectedOperation,
       tags: ["Consent & Privacy"],
       summary: "List the authenticated member's privacy requests",
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorResponse, 403: errorResponse },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorResponse, 403: errorResponse },
     },
   }, async (request) => {
     const userId = actorId(request);

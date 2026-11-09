@@ -56,7 +56,7 @@ A full-stack web application designed to provide a safe and supportive environme
 ### Step 1: Start Backend API
 
 ```
-cd D:\Mindspace\backend\mindspace-api
+cd D:\Mindspace-new\mindspace-new-\backend\mindspace-api
 
 copy .env.example .env
 
@@ -73,7 +73,7 @@ Backend API runs on port 8080.
 ### Step 2: Start AI Agents Service
 
 ```
-cd D:\Mindspace\agents
+cd D:\Mindspace-new\mindspace-new-\agents
 
 docker compose up -d
 ```
@@ -83,7 +83,7 @@ AI Agent service runs on port 8018.
 ### Step 3: Start Frontend
 
 ```
-cd D:\Mindspace\frontend
+cd D:\Mindspace-new\mindspace-new-\frontend
 
 pnpm install
 pnpm dev

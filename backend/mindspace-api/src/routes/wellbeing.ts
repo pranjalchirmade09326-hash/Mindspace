@@ -58,7 +58,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
       tags: ["Intakes"],
       summary: "List encrypted non-diagnostic summaries owned by the authenticated member",
       params: { type: "object", required: ["intakeId"], properties: { intakeId: { type: "string", pattern: uuidPattern } } },
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -96,7 +96,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
         required: ["summary"],
         properties: { summary: { type: "string", minLength: 1, maxLength: 12000 } },
       },
-      response: { 201: { type: "object" }, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -147,7 +147,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
       tags: ["Intakes"],
       summary: "List member-visible support options recorded for an owned intake",
       params: { type: "object", required: ["intakeId"], properties: { intakeId: { type: "string", pattern: uuidPattern } } },
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -186,7 +186,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
           recommendationId: { type: "string", pattern: uuidPattern },
         },
       },
-      response: { 200: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
+      response: { 200: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -235,7 +235,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
           locale: { type: "string", minLength: 2, maxLength: 20 },
         },
       },
-      response: { 201: { type: "object" }, 401: errorSchema, 403: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -252,7 +252,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
       ...security,
       tags: ["Wellbeing"],
       summary: "List the authenticated member's reflection metadata",
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema },
     },
   }, async (request) => {
     const memberId = actorId(request);
@@ -270,7 +270,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
       tags: ["Wellbeing"],
       summary: "Complete an owned reflection",
       params: { type: "object", required: ["id"], properties: { id: { type: "string", pattern: uuidPattern } } },
-      response: { 200: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
+      response: { 200: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -295,7 +295,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
         additionalProperties: false,
         properties: { reflection: { type: "string", maxLength: 8000 } },
       },
-      response: { 201: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -344,7 +344,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
           reflection: { type: "string", maxLength: 8000 },
         },
       },
-      response: { 200: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
+      response: { 200: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -381,7 +381,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
       ...security,
       tags: ["Follow-ups"],
       summary: "List the authenticated member's follow-up records",
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema },
     },
   }, async (request) => {
     const memberId = actorId(request);
@@ -413,7 +413,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
         required: ["scheduledAt"],
         properties: { scheduledAt: { type: "string", format: "date-time" } },
       },
-      response: { 201: { type: "object" }, 400: errorSchema, 401: errorSchema, 403: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 400: errorSchema, 401: errorSchema, 403: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -442,7 +442,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
           response: { type: "string", maxLength: 4000 },
         },
       },
-      response: { 200: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
+      response: { 200: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -477,7 +477,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
       ...security,
       tags: ["Wellbeing"],
       summary: "List the authenticated member's mood entries",
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema },
     },
   }, async (request) => {
     const memberId = actorId(request);
@@ -517,7 +517,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
           recordedAt: { type: "string", format: "date-time" },
         },
       },
-      response: { 201: { type: "object" }, 400: errorSchema, 401: errorSchema, 403: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 400: errorSchema, 401: errorSchema, 403: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -552,7 +552,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
       ...security,
       tags: ["Wellbeing"],
       summary: "List the authenticated member's private journal entries",
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema },
     },
   }, async (request) => {
     const memberId = actorId(request);
@@ -587,7 +587,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
           body: { type: "string", minLength: 1, maxLength: 20000 },
         },
       },
-      response: { 201: { type: "object" }, 400: errorSchema, 401: errorSchema, 403: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 400: errorSchema, 401: errorSchema, 403: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -628,7 +628,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
         required: ["body"],
         properties: { title: { type: "string", maxLength: 200 }, body: { type: "string", minLength: 1, maxLength: 20000 } },
       },
-      response: { 200: { type: "object" }, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+      response: { 200: { type: "object", additionalProperties: true }, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -686,7 +686,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
       ...security,
       tags: ["Wellbeing"],
       summary: "List the authenticated member's wellbeing goals",
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema },
     },
   }, async (request) => {
     const memberId = actorId(request);
@@ -724,7 +724,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
         required: ["goal"],
         properties: { goal: { type: "string", minLength: 1, maxLength: 2000 }, targetDate: { type: "string", format: "date" } },
       },
-      response: { 201: { type: "object" }, 400: errorSchema, 401: errorSchema, 403: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 400: errorSchema, 401: errorSchema, 403: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -765,7 +765,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
           note: { type: "string", maxLength: 4000 },
         },
       },
-      response: { 201: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -805,7 +805,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
         additionalProperties: false,
         properties: { locale: { type: "string", minLength: 2, maxLength: 20 }, type: { type: "string", enum: ["exercise", "article", "prompt", "resource"] } },
       },
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema },
     },
   }, async (request) => {
     const now = new Date();
@@ -839,7 +839,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
           consentId: { type: "string", pattern: uuidPattern },
         },
       },
-      response: { 201: { type: "object" }, 400: errorSchema, 401: errorSchema, 403: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 400: errorSchema, 401: errorSchema, 403: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -875,7 +875,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
       ...security,
       tags: ["Wellbeing"],
       summary: "List the authenticated member's wellbeing session metadata",
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema },
     },
   }, async (request) => {
     const memberId = actorId(request);
@@ -909,7 +909,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
         required: ["status"],
         properties: { status: { type: "string", enum: ["completed", "abandoned"] } },
       },
-      response: { 200: { type: "object" }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
+      response: { 200: { type: "object", additionalProperties: true }, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -942,7 +942,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
         required: ["content", "sequenceNo"],
         properties: { content: { type: "string", minLength: 1, maxLength: 12000 }, sequenceNo: { type: "integer", minimum: 1 } },
       },
-      response: { 201: { type: "object" }, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
+      response: { 201: { type: "object", additionalProperties: true }, 400: errorSchema, 401: errorSchema, 403: errorSchema, 404: errorSchema, 409: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);
@@ -979,7 +979,7 @@ export async function registerWellbeingRoutes(app: FastifyInstance) {
       tags: ["Wellbeing"],
       summary: "Read messages from an owned wellbeing session",
       params: { type: "object", required: ["sessionId"], properties: { sessionId: { type: "string", pattern: uuidPattern } } },
-      response: { 200: { type: "array", items: { type: "object" } }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
+      response: { 200: { type: "array", items: { type: "object", additionalProperties: true } }, 401: errorSchema, 403: errorSchema, 404: errorSchema },
     },
   }, async (request, reply) => {
     const memberId = actorId(request);

@@ -31,7 +31,12 @@ export function DemoRoleButtons() {
       const res = await fetch("/api/auth/dev-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: roleId }),
+        body: JSON.stringify({
+          role: roleId,
+          email: `${roleId}@mindspace.local`,
+          name: roleId.replace(/[-_.]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          redirectUrl: `/mindspace/${roleId}`,
+        }),
       });
       const data = (await res.json()) as { redirectUrl?: string; error?: string };
       if (!res.ok || !data.redirectUrl) {

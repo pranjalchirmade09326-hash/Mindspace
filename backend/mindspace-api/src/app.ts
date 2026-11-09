@@ -14,6 +14,7 @@ import { registerMemberRoutes } from "./routes/member.js";
 import { registerWellbeingRoutes } from "./routes/wellbeing.js";
 import { registerPeerSupportRoutes } from "./routes/peer-support.js";
 import { registerOperationRoutes } from "./routes/operations.js";
+import { registerDashboardRoutes } from "./routes/dashboards.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -132,6 +133,7 @@ export async function buildApp() {
   await registerWellbeingRoutes(app);
   await registerPeerSupportRoutes(app);
   await registerOperationRoutes(app);
+  await registerDashboardRoutes(app);
   await app.register(swaggerUi, {
     routePrefix: "/api-docs",
     staticCSP: true,

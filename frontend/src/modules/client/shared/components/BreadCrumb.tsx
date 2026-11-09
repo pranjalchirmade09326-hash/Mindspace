@@ -35,7 +35,19 @@ export default function BreadCrumb({ className = "" }: { className?: string }) {
     <Breadcrumb className={className}>
       <BreadcrumbList>
         {pathSegments.map((segment, index) => {
-          const label = segment.split("-").join(" ").toLowerCase();
+          const rawLabel = segment.split("-").join(" ").toLowerCase();
+          const sLower = segment.toLowerCase();
+          const label =
+            sLower === "bezs"
+              ? "Home"
+              : sLower === "telemedicine" || sLower === "mindspace"
+              ? "MindSpace"
+              : sLower === "patient" || sLower === "member"
+              ? "Member"
+              : sLower === "doctor" || sLower === "listener"
+              ? "Listener"
+              : capitalizeString(rawLabel);
+
           const linkPath = pathSegments.slice(0, index + 1).join("/");
           const isLast = index + 1 === pathSegments.length;
 
@@ -44,7 +56,7 @@ export default function BreadCrumb({ className = "" }: { className?: string }) {
               <BreadcrumbPage
                 className={cn("text-base text-primary font-bold")}
               >
-                {capitalizeString(segment === "bezs" ? "Home" : label)}
+                {label}
               </BreadcrumbPage>
             </BreadcrumbItem>
           ) : (
@@ -54,7 +66,7 @@ export default function BreadCrumb({ className = "" }: { className?: string }) {
                   href={`/${linkPath}`}
                   className="text-base hover:text-foreground"
                 >
-                  {segment === "bezs" ? "Home" : capitalizeString(label)}
+                  {label}
                 </Link>
               </BreadcrumbItem>
               <BreadcrumbSeparator className="[&>svg]:size-4.5" />

@@ -1,27 +1,10 @@
-import { errors, createRemoteJWKSet, jwtVerify, SignJWT } from "jose";
+import { errors, createRemoteJWKSet, jwtVerify } from "jose";
 import type { JWTPayload } from "jose";
 import type { FastifyReply, FastifyRequest, preHandlerHookHandler } from "fastify";
 import { config } from "./config.js";
 import { prisma } from "./db.js";
 
 const jwks = createRemoteJWKSet(new URL(config.authJwksUrl));
-const localSecret = new TextEncoder().encode(
-  process.env.JWT_SECRET || "mindspace-local-dev-jwt-signing-secret-32b!!"
-);
-
-export async function signLocalToken(userId: string, roles: string[]): Promise<string> {
-  return await new SignJWT({
-    sub: userId,
-    roles,
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuer(config.authIssuer)
-    .setAudience(config.authAudience)
-    .setIssuedAt()
-    .setExpirationTime("24h")
-    .sign(localSecret);
-}
-
 export const roleCodes = [
   "member",
   "listener",
@@ -44,40 +27,29 @@ async function verifyIdentity(request: FastifyRequest, reply: FastifyReply): Pro
     return null;
   }
 
-  let payload: JWTPayload | null = null;
   try {
-    const verified = await jwtVerify(token, localSecret, {
+    const { payload } = await jwtVerify(token, jwks, {
       issuer: config.authIssuer,
       audience: config.authAudience,
     });
-    payload = verified.payload;
-  } catch {
-    try {
-      const verified = await jwtVerify(token, jwks, {
-        issuer: config.authIssuer,
-        audience: config.authAudience,
+    if (typeof payload.sub !== "string" || payload.sub.length === 0) {
+      await reply.code(401).send({
+        error: { code: "INVALID_TOKEN", message: "The bearer token is invalid." },
       });
-      payload = verified.payload;
-    } catch (jwksError) {
-      if (jwksError instanceof errors.JOSEError) {
-        await reply.code(401).send({
-          error: { code: "INVALID_TOKEN", message: "The bearer token is invalid or expired." },
-        });
-        return null;
-      }
-      throw jwksError;
+      return null;
     }
+    request.userId = payload.sub;
+    request.identityClaims = payload;
+    return payload;
+  } catch (error) {
+    if (error instanceof errors.JOSEError) {
+      await reply.code(401).send({
+        error: { code: "INVALID_TOKEN", message: "The bearer token is invalid or expired." },
+      });
+      return null;
+    }
+    throw error;
   }
-
-  if (typeof payload?.sub !== "string" || payload.sub.length === 0) {
-    await reply.code(401).send({
-      error: { code: "INVALID_TOKEN", message: "The bearer token is invalid." },
-    });
-    return null;
-  }
-  request.userId = payload.sub;
-  request.identityClaims = payload;
-  return payload;
 }
 
 export const requireVerifiedIdentity: preHandlerHookHandler = async (request, reply) => {

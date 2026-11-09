@@ -53,8 +53,12 @@ export async function POST(request: Request) {
   });
 
   try {
+    const iamBaseUrl =
+      process.env.BETTER_AUTH_INTERNAL_URL ||
+      process.env.BETTER_AUTH_URL ||
+      process.env.NEXT_PUBLIC_BETTER_AUTH_URL;
     const tokenRes = await axios.post<Record<string, unknown>>(
-      `${process.env.NEXT_PUBLIC_BETTER_AUTH_URL}/api/auth/oauth2/token`,
+      `${iamBaseUrl}/api/auth/oauth2/token`,
       params.toString(),
       {
         headers: {

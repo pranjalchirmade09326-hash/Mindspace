@@ -27,7 +27,7 @@ The API persists encrypted intake responses and enforces owner-based access. Voi
    ```
 
    Put the resulting value in the `v1` entry in `INTAKE_ENCRYPTION_KEYS_JSON`. Do not use this development key in production.
-3. Configure `AUTH_ISSUER`, `AUTH_AUDIENCE`, and `AUTH_JWKS_URL` for the **MindSpace** identity provider. The issuer must sign JWTs with a `sub` matching `app_principals.user_id`. Never point these settings at the legacy IAM service.
+3. Configure `AUTH_ISSUER`, `AUTH_AUDIENCE`, and `AUTH_JWKS_URL` for the **MindSpace** identity provider. The issuer must sign JWTs with a `sub` matching `app_principals.user_id`. Never point these settings at the legacy IAM service. The in-repo development issuer is [`backend/mindspace-iam`](../mindspace-iam/README.md), which serves `http://localhost:5001` with issuer `http://localhost:5001` and audience `mindspace-api`.
 4. Configure `TRANSCRIPTION_API_URL`, `TRANSCRIPTION_API_KEY`, and `TRANSCRIPTION_MODEL` for a provider that implements the OpenAI-compatible audio transcription contract (typically `POST /v1/audio/transcriptions`). The endpoint must be HTTPS in production. Leave these unset to disable voice transcription until a provider is approved.
 5. Start the isolated local database and install packages:
 
@@ -126,6 +126,35 @@ Health probes are public. All `/api/v1` routes require a verified MindSpace bear
 | `POST` | `/api/v1/agent/tool-invocations` | Record agent invocation metadata; does not authorize or execute tools |
 | `POST` | `/api/v1/admin/outbox-events` and `/api/v1/admin/event-consumer-receipts/{id}` | Write minimized outbox metadata and idempotent consumer receipts |
 
+### Dashboard read models
+
+These endpoints back the role dashboards. They are read-only projections over the same tables, scoped by the caller's active role, and never widen ownership beyond the verified JWT subject.
+
+| Role | Method | Path | Purpose |
+|---|---|---|---|
+| Member | `GET` | `/api/v1/members/me/summary` | Weekly check-ins, saved reflections, active goals, support requests, conversations, notifications, privacy requests |
+| Listener | `GET` | `/api/v1/listeners/me/profile`, `/training`, `/summary` | Listener profile state, training records, open conversations/offers, availability, scheduled follow-ups |
+| Supervisor | `GET` | `/api/v1/operations/supervisor/summary` | Listener roster counts, open conduct reports, pending assignments |
+| Supervisor | `GET` | `/api/v1/operations/supervisor/listeners` | Listener roster with name, training state, open conversations, supervisor |
+| Supervisor | `GET` | `/api/v1/operations/supervisor/training-records` | Training records with member-visible fields only |
+| Supervisor | `GET`, `PATCH` | `/api/v1/operations/supervisor/conduct-reports`, `/conduct-reports/{id}` | List reports (never ciphertext) and record an `open`/`in_review`/`resolved`/`closed` transition |
+| Supervisor | `GET`, `POST` | `/api/v1/operations/supervisor/assignments` | List or create listener-to-supervisor assignments |
+| Safety | `GET` | `/api/v1/operations/safety/summary` | Cases assigned to me, open cases, pending handoffs/follow-ups/resources |
+| Safety | `GET` | `/api/v1/operations/safety/cases/{id}/actions` | Case action history without encrypted notes |
+| Safety | `GET` | `/api/v1/operations/safety/followups` | Follow-ups in safety scope |
+| Admin | `GET` | `/api/v1/admin/platform/overview` | Principal/role counts, cases, tasks, notifications, outbox, AI runs, audit events, DB status (`503` when the database is unreachable) |
+| Admin | `GET` | `/api/v1/admin/audit-events` | Filter audit events by `actionCode`, `actorUserId`, `resourceType`, `limit` |
+| Admin | `GET` | `/api/v1/admin/workflow-definitions`, `/workflow-executions`, `/workflow-tasks` | Workflow registry projections |
+| Admin | `GET` | `/api/v1/admin/notifications` | Notification queue with delivery status |
+| Admin | `GET` | `/api/v1/admin/self-help/content` | All content revisions with approval state |
+| Admin | `GET` | `/api/v1/admin/outbox-events` | Minimized outbox metadata |
+| Agent | `POST`, `GET` | `/api/v1/agent/runs` | Create or list agent runs; creation requires an active member and granted `intake` consent |
+| Agent | `PATCH` | `/api/v1/agent/runs/{id}` | Update run status |
+| Agent | `GET`, `PATCH` | `/api/v1/agent/tool-invocations`, `/{id}` | Read invocation metadata (never digests) or record status/output digest |
+| Agent | `GET` | `/api/v1/agent/summary` | Registered identities, authorized tools, run/invocation counts, failures, running runs |
+
+The dashboards in the frontend currently render static demo rows from `frontend/src/modules/client/mindspace-dashboard/dashboard-data.ts`. Wiring each page to these endpoints is a separate step and does not change their authorization model.
+
 ### Scope and integration boundaries
 
 This delivery adds schema/migration and route coverage for the wellbeing, peer-support, safety-operations, administration, workflow-registry, AI metadata, and eventing domains. It is an API/storage foundation, not a fully integrated production service: some conceptual entities still need purpose-specific endpoints, validation against the approved product policy, and end-to-end tests with a real MindSpace identity provider.
@@ -174,6 +203,32 @@ curl.exe -X POST "http://localhost:8080/api/v1/intakes/{intakeId}/transcription"
 Allowed audio formats are WebM, Ogg, WAV, MPEG, and MP4, with a 10 MiB upload limit. The transcript is encrypted and stored as an `intake_responses` row with topic `voice_transcription`. The response returns the transcript to the authenticated member. When no provider is configured, this route returns `503 TRANSCRIPTION_UNAVAILABLE`.
 
 The `DELETE` operation is intentionally a soft-delete. It does not imply immediate physical erasure; implement and approve the retention/purge workflow before processing real member data.
+
+## Identity service (in-repo, development)
+
+[`backend/mindspace-iam`](../mindspace-iam/README.md) is the MindSpace-owned Better Auth service used for local sign-in and sign-up. It stores users, sessions, accounts, verification tokens, and JWKS keys in the `iam` schema of the same PostgreSQL cluster this API uses, and issues Ed25519 JWTs at `/api/auth/token` with `sub` equal to the Better Auth user id.
+
+Sign-up creates a Better Auth user with the base `member` role; privileged roles are only granted through the admin API. The API never trusts the role claim in the JWT — it reads `app_principals` and `role_assignments`, so the frontend calls `POST /api/v1/members/me/provision` after login to create the member principal.
+
+Development run order:
+
+```powershell
+# 1. shared PostgreSQL (port 5433)
+docker compose up -d mindspace-postgres        # from backend/mindspace-api
+
+# 2. API schema
+pnpm db:migrate && pnpm db:generate            # from backend/mindspace-api
+
+# 3. IAM schema, demo identities, and synthetic API rows
+pnpm install && pnpm db:push && pnpm db:seed   # from backend/mindspace-iam
+
+# 4. services
+pnpm dev                                        # backend/mindspace-iam  -> :5001
+pnpm dev                                        # backend/mindspace-api  -> :8080
+pnpm dev                                        # frontend               -> :4000
+```
+
+Demo identities (password `MindspaceDemo123!`): `member@mindspace.test`, `listener@mindspace.test`, `supervisor@mindspace.test`, `safety@mindspace.test`, `admin@mindspace.test`, `agent@mindspace.test`. Verify sign-in persistence with `SELECT id, email, role FROM iam."user";` and `SELECT id, "userId", "expiresAt" FROM iam.session;`.
 
 ## Swagger verification
 

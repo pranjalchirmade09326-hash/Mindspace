@@ -11,7 +11,6 @@ import { NavUser } from "../NavUser";
 import { ThemeSwitcher } from "@/theme/ThemeSwitcher";
 import BreadCrumb from "@/modules/client/shared/components/BreadCrumb";
 import { useRouteConfig } from "@/modules/client/shared/hooks/useRouteConfig";
-import { RoleSwitcherControl } from "@/modules/client/mindspace-dashboard/components/RoleSwitcherControl";
 
 type TUser = {
   name: string;
@@ -59,8 +58,7 @@ const AppNavbar = ({ user, apps }: { user: TUser; apps: any[] }) => {
             </>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          <RoleSwitcherControl userRole={user.role} />
+        <div className="flex items-center gap-4">
           <ThemeSwitcher />
           <Bell className="h-5 w-5 text-zinc-500 dark:text-zinc-300 cursor-pointer" />
           <AppLauncher apps={apps} />

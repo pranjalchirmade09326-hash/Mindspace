@@ -1,0 +1,156 @@
+{
+  "timestamp": "2026-11-02T17:26:31.119Z",
+  "total": 10,
+  "passed": 7,
+  "failed": 3,
+  "skipped": 0,
+  "durationMs": 78.9468,
+  "tierBreakdown": {
+    "1": {
+      "total": 5,
+      "passed": 4,
+      "failed": 1,
+      "skipped": 0
+    },
+    "2": {
+      "total": 5,
+      "passed": 3,
+      "failed": 2,
+      "skipped": 0
+    },
+    "3": {
+      "total": 0,
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    "4": {
+      "total": 0,
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "results": [
+    {
+      "id": "T1.F9.1",
+      "tier": 1,
+      "featureId": "F9",
+      "featureName": "Dashboard Rendering Latency < 1000ms",
+      "title": "Doctor dashboard HTTP render latency < 1000ms",
+      "status": "PASSED",
+      "durationMs": 3.003099999999961,
+      "expected": "< 1000ms",
+      "actual": "3ms",
+      "error": "Doctor dashboard rendered in 3ms (< 1000ms)"
+    },
+    {
+      "id": "T1.F9.2",
+      "tier": 1,
+      "featureId": "F9",
+      "featureName": "Dashboard Rendering Latency < 1000ms",
+      "title": "Patient portal HTTP render latency < 1000ms",
+      "status": "PASSED",
+      "durationMs": 1.6707999999999288,
+      "expected": "< 1000ms",
+      "actual": "2ms",
+      "error": "Patient portal rendered in 2ms (< 1000ms)"
+    },
+    {
+      "id": "T1.F9.3",
+      "tier": 1,
+      "featureId": "F9",
+      "featureName": "Dashboard Rendering Latency < 1000ms",
+      "title": "Admin organizations HTTP render latency < 1000ms",
+      "status": "PASSED",
+      "durationMs": 2.4874999999999545,
+      "expected": "< 1000ms",
+      "actual": "2ms",
+      "error": "Admin organizations rendered in 2ms (< 1000ms)"
+    },
+    {
+      "id": "T1.F9.4",
+      "tier": 1,
+      "featureId": "F9",
+      "featureName": "Dashboard Rendering Latency < 1000ms",
+      "title": "End-to-end dev-login transition latency < 1000ms",
+      "status": "PASSED",
+      "durationMs": 1.772199999999998,
+      "expected": "< 250ms",
+      "actual": "2ms",
+      "error": "dev-login completed in 2ms"
+    },
+    {
+      "id": "T1.F9.5",
+      "tier": 1,
+      "featureId": "F9",
+      "featureName": "Dashboard Rendering Latency < 1000ms",
+      "title": "BetterAuth probe timeout bound in get-session.ts",
+      "status": "FAILED",
+      "durationMs": 0.13589999999999236,
+      "expected": "<= 250ms",
+      "actual": "File not found",
+      "error": "External auth timeout is File not found (exceeds 250ms sub-second budget)"
+    },
+    {
+      "id": "T2.F9.1",
+      "tier": 2,
+      "featureId": "F9",
+      "featureName": "Dashboard Rendering Latency < 1000ms",
+      "title": "Latency under large session cookie payload (4KB)",
+      "status": "PASSED",
+      "durationMs": 2.3302999999999656,
+      "expected": "< 1000ms with large cookie",
+      "actual": "2ms",
+      "error": "Large cookie handled < 1000ms"
+    },
+    {
+      "id": "T2.F9.2",
+      "tier": 2,
+      "featureId": "F9",
+      "featureName": "Dashboard Rendering Latency < 1000ms",
+      "title": "Consecutive requests average latency benchmark (p50 < 500ms)",
+      "status": "PASSED",
+      "durationMs": 1.670633333333323,
+      "expected": "Mean latency < 1000ms",
+      "actual": "2ms",
+      "error": "Mean latency 2ms (< 1000ms)"
+    },
+    {
+      "id": "T2.F9.3",
+      "tier": 2,
+      "featureId": "F9",
+      "featureName": "Dashboard Rendering Latency < 1000ms",
+      "title": "React.cache memoization in getServerSession check",
+      "status": "FAILED",
+      "durationMs": 0.1671000000000049,
+      "expected": "React.cache wrapping getServerSession",
+      "actual": "File not found",
+      "error": "File not found"
+    },
+    {
+      "id": "T2.F9.4",
+      "tier": 2,
+      "featureId": "F9",
+      "featureName": "Dashboard Rendering Latency < 1000ms",
+      "title": "Organization service timeout bound in organization.rest.service.ts",
+      "status": "PASSED",
+      "durationMs": 0.06619999999998072,
+      "expected": "Timeout <= 2000ms",
+      "actual": "Not found or safe",
+      "error": "Organization service timeout bounded"
+    },
+    {
+      "id": "T2.F9.5",
+      "tier": 2,
+      "featureId": "F9",
+      "featureName": "Dashboard Rendering Latency < 1000ms",
+      "title": "Dashboard loading suspense boundary audit",
+      "status": "FAILED",
+      "durationMs": 0.05960000000004584,
+      "expected": "loading.tsx exists in doctor dashboard route",
+      "actual": "loading.tsx missing (streaming disabled)",
+      "error": "Missing loading.tsx"
+    }
+  ]
+}

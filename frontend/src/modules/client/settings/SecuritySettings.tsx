@@ -108,7 +108,7 @@ export default function SecuritySettings({ user }: { user: User }) {
 
   useEffect(() => {
     authClient.listAccounts().then(({ data }) => {
-      if (data) setAccounts(data as unknown as { providerId: string }[]);
+      if (data) setAccounts(data as { provider: string }[]);
     });
   }, []);
 
@@ -228,7 +228,7 @@ export default function SecuritySettings({ user }: { user: User }) {
     if (!twoFaPassword) return;
     setTwoFaPending(true);
     try {
-      const { data, error } = await (authClient.twoFactor as unknown as { viewBackupCodes: (a: { password: string }) => Promise<{ data?: { backupCodes?: string[] }; error?: { message?: string } }> }).viewBackupCodes({
+      const { data, error } = await authClient.twoFactor.viewBackupCodes({
         password: twoFaPassword,
       });
       if (error) throw new Error(error.message);

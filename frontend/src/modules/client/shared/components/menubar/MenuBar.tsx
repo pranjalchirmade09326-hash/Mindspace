@@ -19,7 +19,7 @@ import { NavGroup } from "./NavGroup";
 import { AppTitle } from "./AppTitle";
 import { SidebarNavUser } from "../SidebarNavUser";
 import { type NavGroup as NavGroupProps } from "./types";
-import { mindspaceSidebarData, getMindspaceNavForPath } from "./menu-datas";
+import { settingsSidebarData, telemedicineSidebarData } from "./menu-datas";
 
 type TUser = {
   name: string;
@@ -85,6 +85,123 @@ function buildNavGroups(app: ContextApp): NavGroupProps[] {
     }));
 }
 
+const patientIntakeLinks: NavGroupProps["items"] = [
+  {
+    title: "Choose an intake",
+    url: "/mindspace/member/intake",
+    icon: "heart",
+  },
+  {
+    title: "Chat intake",
+    url: "/mindspace/member/chat",
+    icon: "message-circle",
+  },
+  {
+    title: "Voice intake",
+    url: "/mindspace/member/voice",
+    icon: "mic",
+  },
+];
+
+function withPatientIntakeLinks(groups: NavGroupProps[]): NavGroupProps[] {
+  const missingLinks = patientIntakeLinks.filter(
+    (link) =>
+      !groups.some((group) =>
+        group.items.some(
+          (item) =>
+            ("url" in item && item.url === link.url) ||
+            ("items" in item &&
+              Array.isArray(item.items) &&
+              item.items.some((subItem: any) => subItem.url === link.url)),
+        ),
+      ),
+  );
+
+  if (missingLinks.length === 0) return groups;
+
+  const memberGroupIndex = groups.findIndex((group) =>
+    group.title.toLowerCase().includes("member") ||
+    group.title.toLowerCase().includes("patient"),
+  );
+
+  if (memberGroupIndex === -1) {
+    return [...groups, { title: "Intake & Care", items: missingLinks }];
+  }
+
+  return groups.map((group, index) =>
+    index === memberGroupIndex
+      ? { ...group, items: [...group.items, ...missingLinks] }
+      : group,
+  );
+}
+
+function getRoleNavGroups(
+  role: string | null | undefined,
+  pathname?: string,
+): NavGroupProps[] {
+  const p = (pathname ?? "").toLowerCase();
+  const normalizedRole = role?.toLowerCase() ?? "";
+  const isListener =
+    p.includes("/listener") ||
+    p.includes("/doctor") ||
+    normalizedRole.includes("doctor") ||
+    normalizedRole.includes("listener");
+
+  const isAdminOrOperations =
+    p.includes("/admin") ||
+    p.includes("/platform-administrator") ||
+    p.includes("/listener-supervisor") ||
+    p.includes("/safety-operations") ||
+    normalizedRole.includes("admin") ||
+    normalizedRole.includes("supervisor") ||
+    normalizedRole.includes("safety");
+
+  if (isAdminOrOperations) {
+    return telemedicineSidebarData.navGroups.filter((group) =>
+      group.title.toLowerCase().includes("administration"),
+    ) as NavGroupProps[];
+  }
+
+  if (isListener) {
+    return telemedicineSidebarData.navGroups.filter((group) =>
+      group.title.toLowerCase().includes("listener"),
+    ) as NavGroupProps[];
+  }
+
+  return telemedicineSidebarData.navGroups.filter((group) =>
+    group.title.toLowerCase().includes("member"),
+  ) as NavGroupProps[];
+}
+
+function normalizeNavGroups(
+  groups: NavGroupProps[],
+  role?: string | null,
+  pathname?: string,
+): NavGroupProps[] {
+  const p = (pathname ?? "").toLowerCase();
+  const r = role?.toLowerCase() ?? "";
+  const isListener =
+    p.includes("/listener") ||
+    p.includes("/doctor") ||
+    r.includes("doctor") ||
+    r.includes("listener");
+
+  return groups.map((group) => {
+    const titleLower = group.title.toLowerCase();
+    if (
+      titleLower.includes("doctor") ||
+      titleLower.includes("patient") ||
+      titleLower.includes("portal")
+    ) {
+      return {
+        ...group,
+        title: isListener ? "Peer Listener Workspace" : "Member Sanctuary",
+      };
+    }
+    return group;
+  });
+}
+
 const SKELETON_COUNTS = [3, 2, 2, 1];
 
 function NavSkeleton() {
@@ -117,13 +234,25 @@ export function MenuBar(user: TUser) {
   const pathname = usePathname();
 
   const segments = pathname.split("/").filter(Boolean);
-  const currentSlug = segments.find((s) => s === "mindspace" || s === "intake") ?? (segments[1] ?? "");
+  const isSettings = pathname.includes("/settings");
+  const currentSlug =
+    segments.find((s) => s === "telemedicine" || s === "settings") ??
+    (segments[1] ?? "");
 
   const currentApp = allApps.find((a) => a.slug === currentSlug);
-  const navGroups: NavGroupProps[] =
-    currentApp && buildNavGroups(currentApp).length > 0
-      ? buildNavGroups(currentApp)
-      : (getMindspaceNavForPath(pathname, user.role) as NavGroupProps[]);
+  const roleGroups = getRoleNavGroups(user.role, pathname);
+  const baseNavGroups: NavGroupProps[] = isSettings
+    ? (settingsSidebarData.navGroups as NavGroupProps[])
+    : currentApp && buildNavGroups(currentApp).length > 0
+      ? normalizeNavGroups(buildNavGroups(currentApp), user.role, pathname)
+      : roleGroups;
+  const isMemberWorkspace =
+    pathname.includes("/telemedicine/patient") ||
+    pathname.includes("/mindspace/member");
+  const navGroups =
+    !isSettings && isMemberWorkspace
+      ? withPatientIntakeLinks(baseNavGroups)
+      : baseNavGroups;
 
   useEffect(() => {
     let isSubscribed = true;
@@ -176,7 +305,7 @@ export function MenuBar(user: TUser) {
         <AppTitle />
       </SidebarHeader>
       <SidebarContent>
-        {isLoading ? (
+        {!isSettings && isLoading ? (
           <NavSkeleton />
         ) : (
           navGroups.map((props) => <NavGroup key={props.title} {...props} />)

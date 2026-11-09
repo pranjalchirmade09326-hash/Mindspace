@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Sans } from "next/font/google";
 import "../globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
@@ -11,11 +10,7 @@ import { ThemeProvider } from "@/theme/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/providers/QueryProvider";
 
-const dmSans = DM_Sans({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
+const dmSans = { className: "" };
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:4000"),
@@ -64,7 +59,7 @@ export default async function RootLayout({
   return (
     <html lang={locale} suppressHydrationWarning>
       <body
-        className={`${dmSans.variable} ${dmSans.className} font-sans antialiased`}
+        className={`${dmSans.className} antialiased`}
         suppressHydrationWarning
       >
         <ThemeProvider>
