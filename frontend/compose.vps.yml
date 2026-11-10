@@ -1,61 +1,61 @@
 services:
 
   # ─── PostgreSQL ───────────────────────────────────────────────────────────────
-  # Not exposed outside — only reachable within drgodly-net
+  # Not exposed outside — only reachable within mindspace-net
   postgres:
     image: postgres:16-alpine
-    container_name: drgodly-postgres
+    container_name: mindspace-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: drgodly
-      POSTGRES_PASSWORD: drgodly
-      POSTGRES_DB: drgodly_main
+      POSTGRES_USER: mindspace
+      POSTGRES_PASSWORD: mindspace
+      POSTGRES_DB: mindspace_main
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - drgodly-net
+      - mindspace-net
     configs:
       - source: init_db
         target: /docker-entrypoint-initdb.d/01_init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-drgodly} -d drgodly_main"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-mindspace} -d mindspace_main"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   # ─── App ─────────────────────────────────────────────────────────────────────
   app:
-    image: ghcr.io/naveenraj-g/drgodly:latest
-    container_name: drgodly
+    image: ghcr.io/naveenraj-g/mindspace-frontend:latest
+    container_name: mindspace-frontend
     restart: unless-stopped
     env_file:
       - .env.vps
     volumes:
-      - /root/drgodly/logs:/app/logs
-      - /root/drgodly/uploads:/app/uploads
+      - /root/mindspace/logs:/app/logs
+      - /root/mindspace/uploads:/app/uploads
     ports:
       - "3003:3000"
     networks:
-      - drgodly-net
+      - mindspace-net
       - fhir-server_fhir-net
       - iam-app_bezs-net
       - a2ui-agent_default
-      - drgodly-agents_default
+      - mindspace-agents_default
     depends_on:
       postgres:
         condition: service_healthy
 
-# ─── Creates drgodly_telemedicine on first postgres start ─────────────────────
+# ─── Creates mindspace_telemedicine on first postgres start ─────────────────────
 configs:
   init_db:
     content: |
-      CREATE DATABASE drgodly_telemedicine;
+      CREATE DATABASE mindspace_telemedicine;
 
 volumes:
   postgres_data:
 
 networks:
-  drgodly-net:
+  mindspace-net:
     external: true
   # FHIR REST + GQL services
   fhir-server_fhir-net:
@@ -66,6 +66,6 @@ networks:
   # A2UI agents (intake, consultation)
   a2ui-agent_default:
     external: true
-  # DrGodly agents (assessment, doctor report, etc.)
-  drgodly-agents_default:
+  # MindSpace agents (assessment, doctor report, etc.)
+  mindspace-agents_default:
     external: true

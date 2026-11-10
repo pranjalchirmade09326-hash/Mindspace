@@ -1,9 +1,4 @@
-# Local development infrastructure for drgodly.
-#
-# This brings up the backing services only (Postgres + Redis) — it does
-# NOT run the Next.js app itself. Run the app natively with `pnpm dev` so
-# you get fast refresh; point DATABASE_URL in your .env at the Postgres
-# instance started here.
+# Local development stack for MindSpace.
 #
 # Redis is provisioned for future caching/session use. Nothing in the
 # app talks to it yet, so it's safe to leave running idle.
@@ -16,14 +11,14 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: drgodly-postgres
+    container_name: mindspace-frontend-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-drgodly}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-drgodly}
-      POSTGRES_DB: ${POSTGRES_DB:-drgodly}
+      POSTGRES_USER: ${POSTGRES_USER:-mindspace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mindspace}
+      POSTGRES_DB: ${POSTGRES_DB:-mindspace}
     ports:
-      - "5434:5432"
+      - "5435:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -32,9 +27,58 @@ services:
       timeout: 5s
       retries: 5
 
+  frontend-db-init:
+    build:
+      context: .
+      target: builder
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:4000}
+        NEXT_PUBLIC_BETTER_AUTH_URL: ${NEXT_PUBLIC_BETTER_AUTH_URL:-http://localhost:5001}
+        NEXT_PUBLIC_BETTER_AUTH_CLIENT_ID: ${NEXT_PUBLIC_BETTER_AUTH_CLIENT_ID:-}
+        NEXT_DEPLOYMENT_ID: ${NEXT_DEPLOYMENT_ID:-local}
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mindspace}:${POSTGRES_PASSWORD:-mindspace}@postgres:5432/${POSTGRES_DB:-mindspace}?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      target: runner
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:4000}
+        NEXT_PUBLIC_BETTER_AUTH_URL: ${NEXT_PUBLIC_BETTER_AUTH_URL:-http://localhost:5001}
+        NEXT_PUBLIC_BETTER_AUTH_CLIENT_ID: ${NEXT_PUBLIC_BETTER_AUTH_CLIENT_ID:-}
+        NEXT_DEPLOYMENT_ID: ${NEXT_DEPLOYMENT_ID:-local}
+    container_name: mindspace-frontend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mindspace}:${POSTGRES_PASSWORD:-mindspace}@postgres:5432/${POSTGRES_DB:-mindspace}?schema=public
+      BETTER_AUTH_URL: http://host.docker.internal:5001
+      MINDSPACE_API_URL: http://host.docker.internal:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "4000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      frontend-db-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   redis:
     image: redis:7-alpine
-    container_name: drgodly-redis
+    container_name: mindspace-redis
     restart: unless-stopped
     ports:
       - "6379:6379"

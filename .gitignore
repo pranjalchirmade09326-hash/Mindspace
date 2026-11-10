@@ -52,8 +52,9 @@ Thumbs.db
 .vscode/
 .idea/
 
-#folder
-docs/
+# Local & Temporary Folders
 .agents/
-.github/
+deploy/
+docs/
+
 

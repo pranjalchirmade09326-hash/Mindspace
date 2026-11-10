@@ -239,7 +239,8 @@ export type RoleSectionData =
 
 async function load<T>(request: () => Promise<T>): Promise<T | null> {
   try {
-    return await request();
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 120));
+    return await Promise.race([request(), timeout]);
   } catch {
     return null;
   }
@@ -309,6 +310,10 @@ export async function loadListenerSectionData(sectionId: string): Promise<Listen
       const conversations = await load(() => request<PeerConversation[]>("/api/v1/peer/conversations"));
       return conversations ? { kind: "feedback", conversations } : null;
     }
+    case "consultations":
+    case "members":
+    case "profile":
+      return null;
     default:
       return null;
   }

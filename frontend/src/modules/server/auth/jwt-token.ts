@@ -16,7 +16,7 @@ export async function getAuthToken(): Promise<string> {
     const cookie = hdrs.get("cookie") ?? "";
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1500);
+    const timeout = setTimeout(() => controller.abort(), 150);
 
     const res = await fetch(`${process.env.BETTER_AUTH_URL}/api/auth/token`, {
       method: "GET",

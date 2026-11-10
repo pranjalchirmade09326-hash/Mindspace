@@ -1,18 +1,18 @@
 services:
   nextjs:
-    image: ghcr.io/naveenraj-g/drgodly:latest
-    container_name: drgodly
+    image: ghcr.io/naveenraj-g/mindspace-frontend:latest
+    container_name: mindspace-frontend
     env_file:
       - .env
     networks:
-      - drgodly-net
+      - mindspace-net
     volumes:
-      - /root/drgodly/logs:/app/logs
-      - /root/drgodly/uploads:/app/uploads
+      - /root/mindspace/logs:/app/logs
+      - /root/mindspace/uploads:/app/uploads
     ports:
       - "3000:3000"
     restart: unless-stopped
 
 networks:
-  drgodly-net:
+  mindspace-net:
     external: true

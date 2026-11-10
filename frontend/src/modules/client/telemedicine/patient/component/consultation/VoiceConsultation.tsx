@@ -1,9 +1,9 @@
-/**
+﻿/**
  * VoiceConsultation — "Coming Soon" placeholder for voice AI consultation.
  *
  * Layer: client / telemedicine / patient / component / consultation
  *
- * Mirrors drgodly-mvp VoiceConsultation.tsx exactly: a centred ripple-animation
+ * Mirrors mindspace VoiceConsultation.tsx exactly: a centred ripple-animation
  * card with a pulsing microphone indicator and disabled controls.
  * Voice consultation is not yet implemented — only the UI shell is present.
  */

@@ -77,6 +77,54 @@ export const dashboardRoles: DashboardRole[] = [
     ],
     sections: [
       {
+        id: "appointments",
+        title: "Peer Sessions & Booking",
+        description: "Schedule peer support sessions, book slots with verified volunteer listeners, and join online calls.",
+        icon: CalendarDays,
+        columns: ["Session", "Listener", "Format", "Scheduled Time"],
+        rows: [
+          { values: ["Work Burnout & Boundary Restoration", "Aarav Sharma", "Video Room", "Today, 6:30 PM"], status: "Upcoming" },
+          { values: ["Managing Evening Anxiety", "Priya Nair", "Voice Room", "Nov 7, 5:00 PM"], status: "Completed" },
+          { values: ["Relocation Stress & Grounding", "Kabir Mehta", "Text Chat", "Nov 4, 11:00 AM"], status: "Completed" },
+        ],
+      },
+      {
+        id: "medical-records",
+        title: "Reflections & Reports",
+        description: "Confidential post-session reflection summaries, intake evaluations, and personal wellbeing records.",
+        icon: ClipboardCheck,
+        columns: ["Record Title", "Type", "Listener / Evaluator", "Date"],
+        rows: [
+          { values: ["Post-Session Wellbeing & Boundary Review", "Session Reflection Summary", "Aarav Sharma", "Yesterday"], status: "Verified" },
+          { values: ["Initial Multi-Modal Intake & Distress Screening", "Intake Triage Assessment", "MindSpace Care Navigator", "Nov 5"], status: "Verified" },
+          { values: ["Grounding & Somatic Reflection Summary", "Somatic Reflection Note", "Priya Nair", "Nov 1"], status: "Verified" },
+        ],
+      },
+      {
+        id: "vitals",
+        title: "Wellbeing Pulse",
+        description: "Daily self-check-ins, calmness tracking, sleep duration, and emotional steady-state baselines.",
+        icon: Activity,
+        columns: ["Date", "Calmness Score", "Sleep", "Stress State"],
+        rows: [
+          { values: ["Today, 9:00 AM", "8/10 (Grounded)", "7.5 hrs", "Low / Stable"], status: "Logged" },
+          { values: ["Yesterday, 10:30 PM", "6/10 (Neutral)", "6.8 hrs", "Moderate"], status: "Logged" },
+          { values: ["Nov 6, 8:45 AM", "4/10 (Overwhelmed)", "5.5 hrs", "Elevated"], status: "Logged" },
+        ],
+      },
+      {
+        id: "consultation",
+        title: "Peer Listening Rooms",
+        description: "Join instant video rooms, voice listening calls, or confidential text dialogue rooms with verified listeners.",
+        icon: Radio,
+        columns: ["Room Format", "Availability", "Active Listeners", "Encryption"],
+        rows: [
+          { values: ["1-on-1 WebRTC Video Room", "Open Now", "2 Listeners On Duty", "E2EE Secure"], status: "Active" },
+          { values: ["Audio / Voice Peer Session", "Open Now", "3 Listeners On Duty", "E2EE Secure"], status: "Active" },
+          { values: ["Confidential Text Dialogue", "Open Now", "5 Listeners On Duty", "E2EE Secure"], status: "Active" },
+        ],
+      },
+      {
         id: "my-support",
         title: "My support",
         description: "Review peer-support requests and conversations you chose to share.",
@@ -132,6 +180,18 @@ export const dashboardRoles: DashboardRole[] = [
           { values: ["10-minute mindful breathing", "Mindfulness", "5-day streak", "5/7 days this week"], status: "On track" },
           { values: ["Evening digital wind-down by 10 PM", "Sleep", "3-day streak", "4/7 days this week"], status: "On track" },
           { values: ["Daily 20-minute gentle walk", "Movement", "7-day streak", "7/7 days this week"], status: "Completed" },
+        ],
+      },
+      {
+        id: "profile",
+        title: "Profile & Preferences",
+        description: "Confidential member identity, language preferences, and trusted support circle settings.",
+        icon: UserCheck,
+        columns: ["Setting", "Value", "Status"],
+        rows: [
+          { values: ["Display Alias", "Member", "Active"], status: "Private" },
+          { values: ["Listening Languages", "English, Hindi", "Set"], status: "Saved" },
+          { values: ["Trusted Support Circle", "1 Contact", "Configured"], status: "Protected" },
         ],
       },
       {
@@ -200,6 +260,42 @@ export const dashboardRoles: DashboardRole[] = [
       { title: "Boundaries refresher", detail: "Continue your learning module.", time: "This week" },
     ],
     sections: [
+      {
+        id: "consultations",
+        title: "Consultations & Queue",
+        description: "Accept incoming member requests, start live consultation calls, review intake context, and document SOAP notes.",
+        icon: CalendarDays,
+        columns: ["Member", "Focus Topic", "Format", "Scheduled Slot"],
+        rows: [
+          { values: ["Ananya", "Work anxiety & feeling overwhelmed", "Video Room", "Today, 6:30 PM"], status: "Waiting" },
+          { values: ["Rohan", "Exam stress & disrupted sleep cycle", "Text Chat", "Today, 7:15 PM"], status: "Confirmed" },
+          { values: ["Simran", "Relocation stress & emotional isolation", "Voice Room", "Today, 8:00 PM"], status: "Confirmed" },
+        ],
+      },
+      {
+        id: "members",
+        title: "Member Records & SOAP",
+        description: "Review past encounter histories, distress progression, and confidential post-session SOAP documentation.",
+        icon: ClipboardCheck,
+        columns: ["Member Alias", "Encounters", "Last Session", "Distress Tier"],
+        rows: [
+          { values: ["Ananya", "3 Encounters", "Today", "Tier 1: Mild Distress"], status: "Documented" },
+          { values: ["Rohan", "2 Encounters", "Nov 6", "Tier 1: Mild Distress"], status: "Documented" },
+          { values: ["Simran", "4 Encounters", "Nov 3", "Tier 2: Moderate Work Stress"], status: "Documented" },
+        ],
+      },
+      {
+        id: "profile",
+        title: "Practice Profile & Roster",
+        description: "Manage your verified peer listener level, languages, focus specialties, and concurrent roster capacity.",
+        icon: UserCheck,
+        columns: ["Setting", "Value", "Status"],
+        rows: [
+          { values: ["Listener Credentials", "Level 2 Certified Peer Specialist", "Verified"], status: "Active" },
+          { values: ["Active Queue Dispatch", "Available to Listen", "Online"], status: "Live" },
+          { values: ["Concurrent Member Limit", "Max 3 Members", "Enforced"], status: "Healthy" },
+        ],
+      },
       {
         id: "conversations",
         title: "Conversations",

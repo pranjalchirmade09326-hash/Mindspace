@@ -1,4 +1,4 @@
-/**
+﻿/**
  * getMyAppointmentsUseCase — lists appointments for a specific user.
  *
  * Layer: server / core / appointment / application / usecases
@@ -17,7 +17,7 @@ import {
  * Fetches paginated appointments for the given user.
  * userId must be injected from the authenticated session, never supplied by the client.
  *
- * @param userId - The drgodly user ID whose appointments to fetch.
+ * @param userId - The mindspace user ID whose appointments to fetch.
  * @param query - Optional filters (status, start_from, start_to, limit, offset).
  * @returns Paginated appointment list.
  */

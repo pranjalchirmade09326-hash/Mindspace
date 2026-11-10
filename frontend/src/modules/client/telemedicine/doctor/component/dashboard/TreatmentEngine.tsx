@@ -1,4 +1,4 @@
-/**
+﻿/**
  * TreatmentEngine — AI-derived treatment recommendation card for the doctor dashboard.
  *
  * Layer: client / telemedicine / doctor / component / dashboard
@@ -10,7 +10,7 @@
  *   - Treatment pathway / plan (ordered steps)
  *   - Precaution alerts (yellow warning boxes)
  *
- * Mirrors drgodly-mvp TreatmentEngine.tsx in layout and content.
+ * Mirrors mindspace TreatmentEngine.tsx in layout and content.
  * Accepts the raw assessment_plan object — tolerates any unknown agent shape
  * using loose field extraction.
  */

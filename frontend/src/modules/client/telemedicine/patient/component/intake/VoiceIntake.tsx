@@ -1,4 +1,4 @@
-/**
+﻿/**
  * VoiceIntake — patient-facing voice intake component powered by Vapi AI.
  *
  * Layer: client / telemedicine / patient / intake
@@ -11,7 +11,7 @@
  *     a. updateIntakeAction(id, conversation) → status=COMPLETED.
  *     b. Opens IntakeCompleteModal.
  *
- * UI mirrors drgodly-mvp AiIntake exactly: two avatar cards (AI + patient),
+ * UI mirrors mindspace AiIntake exactly: two avatar cards (AI + patient),
  * ConversationChat thread, and a centered Start/End Call button.
  *
  * Env vars: NEXT_PUBLIC_VAPI_PUBLIC_KEY, NEXT_PUBLIC_VAPI_AGENT_ID.

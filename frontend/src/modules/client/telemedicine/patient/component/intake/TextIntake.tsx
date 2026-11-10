@@ -1,4 +1,4 @@
-/**
+﻿/**
  * TextIntake — patient-facing text chat intake component.
  *
  * Layer: client / telemedicine / patient / intake
@@ -11,7 +11,7 @@
  *  3. "End Chat" saves encrypted conversation turns to MindSpace and completes
  *     the intake before showing IntakeCompleteModal.
  *
- * UI mirrors drgodly-mvp TextIntake exactly: Bot-icon header with live
+ * UI mirrors mindspace TextIntake exactly: Bot-icon header with live
  * Online/Thinking status, ConversationChat thread, Input + Stop/Send + End Chat.
  */
 

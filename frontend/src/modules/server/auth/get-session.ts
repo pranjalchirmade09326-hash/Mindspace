@@ -103,7 +103,7 @@ export const getServerSession = cache(async function getServerSession(): Promise
       const cookie = hdrs.get("cookie") || "";
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2000);
+      const timeout = setTimeout(() => controller.abort(), 150);
 
       try {
         const res = await fetch(`${authUrl}/api/auth/get-session`, {

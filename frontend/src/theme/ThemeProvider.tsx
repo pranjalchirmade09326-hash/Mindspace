@@ -25,6 +25,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       defaultTheme="teal-light"
       enableSystem={false}
       storageKey="app-theme"
+      scriptProps={{ async: true }}
     >
       {children}
     </NextThemesProvider>

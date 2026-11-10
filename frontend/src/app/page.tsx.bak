@@ -1,0 +1,12 @@
+import { redirect } from "next/navigation";
+
+/**
+ * Root page redirect.
+ *
+ * Redirects the root `/` URL immediately to the default locale `/en`.
+ * Prevents hanging on unmatched root route in development.
+ */
+export default function RootPage() {
+  redirect("/en");
+}
+

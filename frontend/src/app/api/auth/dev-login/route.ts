@@ -32,7 +32,7 @@ const pgPool = new Pool({
     process.env.MINDSPACE_DATABASE_URL ||
     process.env.DATABASE_URL_MINDSPACE ||
     "postgresql://mindspace:dev-only-change-me@localhost:5433/mindspace?schema=public",
-  connectionTimeoutMillis: 1500,
+  connectionTimeoutMillis: 200,
   idleTimeoutMillis: 10000,
   max: 5,
 });

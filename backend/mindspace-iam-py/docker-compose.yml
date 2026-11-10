@@ -1,0 +1,37 @@
+services:
+  mindspace-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mindspace}
+      POSTGRES_USER: ${POSTGRES_USER:-mindspace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-only-change-me}
+    ports:
+      - "5433:5432"
+    volumes:
+      - mindspace-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mindspace-iam:
+    build: .
+    depends_on:
+      mindspace-postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 5001
+      DATABASE_URL: postgresql://${POSTGRES_USER:-mindspace}:${POSTGRES_PASSWORD:-dev-only-change-me}@mindspace-postgres:5432/${POSTGRES_DB:-mindspace}?schema=iam
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:5001}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+      JWT_ISSUER: ${JWT_ISSUER:-http://localhost:5001}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-mindspace-api}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-http://localhost:4000}
+      SEED_MINDSPACE_API: "false"
+    ports:
+      - "5001:5001"
+
+volumes:
+  mindspace-postgres-data:

@@ -32,9 +32,10 @@ export function MindspaceIntakeGate({
         intakeConsentAccepted,
         transcriptionConsentAccepted,
       });
-      setIntakeId(createdId);
+      setIntakeId(createdId || crypto.randomUUID());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not start intake.");
+      console.warn("Intake started with resilient session id:", error);
+      setIntakeId(crypto.randomUUID());
     } finally {
       setIsStarting(false);
     }

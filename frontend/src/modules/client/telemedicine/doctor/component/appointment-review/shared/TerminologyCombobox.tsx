@@ -1,9 +1,9 @@
-/**
+﻿/**
  * TerminologyCombobox — searchable terminology code picker.
  *
  * Layer: client / telemedicine / doctor / component / appointment-review / shared
  *
- * Calls GET /api/workflow/terminology?system=<system>&query=<q> (drgodly terminology
+ * Calls GET /api/workflow/terminology?system=<system>&query=<q> (mindspace terminology
  * proxy) which searches LOINC, SNOMED CT, RxNorm, and ICD-10 in the FHIR server.
  * Returns { concepts: [{ code, display, system }] }.
  *

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ConsultationInsights — doctor dashboard card for a completed consultation.
  *
  * Layer: client / telemedicine / doctor / component / dashboard
@@ -8,7 +8,7 @@
  *   Assessment    — AI assessment plan (risk level, differential, treatment)
  *   Conversation  — full LiveKit transcript between doctor and patient
  *
- * Mirrors drgodly-mvp ConsultationInsights.tsx in layout and content.
+ * Mirrors mindspace ConsultationInsights.tsx in layout and content.
  * Accepts a pre-loaded TConsultationResponse — no internal fetch.
  */
 

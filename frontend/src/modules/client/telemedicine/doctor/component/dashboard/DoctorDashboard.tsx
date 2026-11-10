@@ -1,4 +1,4 @@
-/**
+﻿/**
  * DoctorDashboard — main doctor portal dashboard component.
  *
  * Layer: client / telemedicine / doctor / component / dashboard
@@ -36,7 +36,7 @@
  * patient-name search box filters that already-sorted list client-side
  * (plain substring match on display name), so results stay time-ordered.
  *
- * Mirrors drgodly-mvp Dashboard.tsx in overall UX and card grid layout.
+ * Mirrors mindspace Dashboard.tsx in overall UX and card grid layout.
  */
 
 "use client";

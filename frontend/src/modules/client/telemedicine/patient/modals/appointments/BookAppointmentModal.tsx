@@ -1,4 +1,4 @@
-/**
+﻿/**
  * BookAppointmentModal — "How would you like to book?" chooser dialog.
  *
  * Layer: client / telemedicine / patient / modals / appointments
@@ -11,7 +11,7 @@
  *   1. AI Intake Assistant → intakeHref  (guided chat / voice intake first)
  *   2. Manual Booking      → bookHref    (direct slot picker)
  *
- * UI mirrors drgodly-mvp BookAppointmentModal exactly.
+ * UI mirrors mindspace BookAppointmentModal exactly.
  */
 
 "use client";

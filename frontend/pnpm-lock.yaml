@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
-  dicom.ts: e65ba7bb909bdcf10a362c031849753d7c239f84815246ef1e55eee9cbbf8891
+  dicom.ts@1.3.0: e65ba7bb909bdcf10a362c031849753d7c239f84815246ef1e55eee9cbbf8891
 
 importers:
 

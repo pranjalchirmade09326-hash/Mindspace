@@ -28,7 +28,18 @@ export interface LiveDashboardData {
 import { DemoRoleButtons } from "./DemoRoleButtons";
 import {
   MemberDashboardView,
+  MemberAppointmentsView,
+  MemberRecordsView,
+  MemberVitalsView,
+  MemberConsultationView,
+  MemberProfileView,
+  MemberMoodView,
+  MemberJournalView,
+  MemberGoalsView,
   ListenerDashboardView,
+  ListenerConsultationsView,
+  ListenerMembersView,
+  ListenerProfileView,
   AdminDashboardView,
   SupervisorDashboardView,
 } from "@/modules/client/mindspace";
@@ -251,6 +262,130 @@ function SectionPage({
   section: DashboardSection;
   live?: LiveDashboardData | null;
 }) {
+  // Authentic MindSpace Member workflows
+  if (role.id === "member") {
+    if (section.id === "mood") {
+      return (
+        <>
+          <PortalHeader role={role} section={section} />
+          <MemberMoodView />
+        </>
+      );
+    }
+    if (section.id === "journal") {
+      return (
+        <>
+          <PortalHeader role={role} section={section} />
+          <MemberJournalView />
+        </>
+      );
+    }
+    if (section.id === "goals") {
+      return (
+        <>
+          <PortalHeader role={role} section={section} />
+          <MemberGoalsView />
+        </>
+      );
+    }
+    if (section.id === "my-support" || section.id === "appointments") {
+      return (
+        <>
+          <PortalHeader role={role} section={section} />
+          <MemberAppointmentsView />
+        </>
+      );
+    }
+    if (section.id === "wellbeing" || section.id === "vitals") {
+      return (
+        <>
+          <PortalHeader role={role} section={section} />
+          <MemberVitalsView />
+        </>
+      );
+    }
+    if (section.id === "medical-records") {
+      return (
+        <>
+          <PortalHeader role={role} section={section} />
+          <MemberRecordsView />
+        </>
+      );
+    }
+    if (section.id === "consultation") {
+      return (
+        <>
+          <PortalHeader role={role} section={section} />
+          <MemberConsultationView />
+        </>
+      );
+    }
+    if (section.id === "profile") {
+      return (
+        <>
+          <PortalHeader role={role} section={section} />
+          <MemberProfileView />
+        </>
+      );
+    }
+  }
+
+  // Remapped Telemedicine Doctor -> MindSpace Listener workflows
+  if (role.id === "listener") {
+    if (section.id === "consultations" || section.id === "conversations") {
+      return (
+        <>
+          <PortalHeader role={role} section={section} />
+          <ListenerConsultationsView />
+        </>
+      );
+    }
+    if (section.id === "members") {
+      return (
+        <>
+          <PortalHeader role={role} section={section} />
+          <ListenerMembersView />
+        </>
+      );
+    }
+    if (section.id === "profile" || section.id === "application") {
+      return (
+        <>
+          <PortalHeader role={role} section={section} />
+          <ListenerProfileView />
+        </>
+      );
+    }
+  }
+
+  // Remapped Telemedicine Admin -> MindSpace Supervisor, Safety & Platform Admin workflows
+  if (role.id === "listener-supervisor") {
+    return (
+      <>
+        <PortalHeader role={role} section={section} />
+        <SupervisorDashboardView />
+      </>
+    );
+  }
+
+  if (role.id === "safety-operations") {
+    return (
+      <>
+        <PortalHeader role={role} section={section} />
+        <SafetyOperationsDashboardView />
+      </>
+    );
+  }
+
+  if (role.id === "platform-administrator") {
+    return (
+      <>
+        <PortalHeader role={role} section={section} />
+        <AdminDashboardView />
+      </>
+    );
+  }
+
   // When the API returned rows for this section they replace the sample
   // table; otherwise the sample preview remains visible.
   const override = live?.sections?.[section.id];
@@ -346,13 +481,23 @@ function RoleWorkspaceLayout({
 function MemberDashboard({
   role,
   live,
+  overviewData,
 }: {
   role: NonNullable<ReturnType<typeof getDashboardRole>>;
   live?: LiveDashboardData | null;
+  overviewData?: any;
 }) {
+  const memberData = overviewData?.data;
+  const userName = memberData?.summary?.displayName || "Member Sanctuary User";
+  const stats = memberData?.summary?.stats;
+
   return (
     <RoleWorkspaceLayout role={role} activeSectionId="overview" live={live}>
-      <MemberDashboardView />
+      <MemberDashboardView
+        userName={userName}
+        stats={stats}
+        initialData={memberData}
+      />
     </RoleWorkspaceLayout>
   );
 }
@@ -452,7 +597,7 @@ export function MindspaceRoleDashboard({
 
   // Dedicated Clean Architecture layouts per role:
   if (role.id === "member") {
-    return <MemberDashboard role={role} live={live} />;
+    return <MemberDashboard role={role} live={live} overviewData={overviewData} />;
   }
 
   if (role.id === "listener") {

@@ -7,9 +7,11 @@
  *
  * Implements:
  *   - Listener greeting & active availability toggle
- *   - Peer listening active queue
- *   - Listener stats (Active conversations, Completed sessions, Empathy rating, Training hours)
- *   - Recent support conversations
+ *   - Peer listening active queue with:
+ *       • "View Intake" (pre-session distress context & active listening guidance)
+ *       • "Start Consultation" (live call dialog with live transcript & SOAP note drafting)
+ *   - Listener stats (Active conversations, Completed sessions, Empathy rating, Training status)
+ *   - Integrated ListenerSessionRoomModal and MemberIntakeViewModal
  */
 
 import { useState } from "react";
@@ -18,13 +20,17 @@ import {
   BadgeCheck,
   CheckCircle2,
   Clock,
+  Eye,
+  FileText,
   Headphones,
   Heart,
   MessageCircle,
+  PhoneCall,
   Radio,
   ShieldAlert,
   Sparkles,
   Users,
+  Video,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,35 +45,51 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 
+import { ListenerSessionRoomModal } from "./ListenerSessionRoomModal";
+import { MemberIntakeViewModal } from "./MemberIntakeViewModal";
+
 export interface ListenerDashboardViewProps {
   listenerName?: string;
   isAvailable?: boolean;
 }
 
-const MOCK_WAITING_MEMBERS = [
+export interface TQueueMember {
+  id: string;
+  displayName: string;
+  topic: string;
+  waitingMinutes: number;
+  channel: "chat" | "voice" | "video";
+  urgency: "routine" | "support" | "elevated";
+  status: "waiting" | "in_call" | "completed";
+}
+
+const INITIAL_QUEUE_MEMBERS: TQueueMember[] = [
   {
     id: "req-1",
     displayName: "Ananya",
-    topic: "Work anxiety & feeling overwhelmed",
+    topic: "Work anxiety & feeling chronically overwhelmed with deadlines",
     waitingMinutes: 3,
-    channel: "chat",
+    channel: "video",
     urgency: "routine",
+    status: "waiting",
   },
   {
     id: "req-2",
     displayName: "Rohan",
-    topic: "Exam stress & sleeping trouble",
+    topic: "Exam stress & disrupted sleep cycle",
     waitingMinutes: 7,
     channel: "chat",
     urgency: "routine",
+    status: "waiting",
   },
   {
     id: "req-3",
     displayName: "Simran",
-    topic: "Feeling isolated after relocating",
+    topic: "Feeling isolated & emotionally drained after city relocation",
     waitingMinutes: 12,
     channel: "voice",
     urgency: "support",
+    status: "waiting",
   },
 ];
 
@@ -76,13 +98,27 @@ export function ListenerDashboardView({
   isAvailable: initialAvailable = true,
 }: ListenerDashboardViewProps) {
   const [isAvailable, setIsAvailable] = useState(initialAvailable);
+  const [queue, setQueue] = useState<TQueueMember[]>(INITIAL_QUEUE_MEMBERS);
+
+  // Modals state
+  const [isIntakeModalOpen, setIsIntakeModalOpen] = useState(false);
+  const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
+
+  // Active selections
+  const [selectedMemberForIntake, setSelectedMemberForIntake] = useState<TQueueMember | null>(null);
+  const [activeCallSession, setActiveCallSession] = useState<{
+    id: string;
+    memberName: string;
+    topic: string;
+    channel?: string;
+  } | null>(null);
 
   const toggleAvailability = () => {
     const next = !isAvailable;
     setIsAvailable(next);
     if (next) {
       toast.success("You are now Active on the Listener Roster", {
-        description: "New member peer-support requests will be routed to you.",
+        description: "New member peer-support requests will be routed to you in real-time.",
       });
     } else {
       toast.info("Availability paused", {
@@ -91,13 +127,44 @@ export function ListenerDashboardView({
     }
   };
 
+  const handleOpenIntake = (member: TQueueMember) => {
+    setSelectedMemberForIntake(member);
+    setIsIntakeModalOpen(true);
+  };
+
+  const handleStartCall = (member: TQueueMember) => {
+    setActiveCallSession({
+      id: member.id,
+      memberName: member.displayName,
+      topic: member.topic,
+      channel: member.channel,
+    });
+    setIsIntakeModalOpen(false);
+    setIsRoomModalOpen(true);
+    toast.success(`Connected to ${member.displayName}`, {
+      description: "Secure peer consultation room opened. Microphone and live audio stream ready.",
+    });
+  };
+
+  const handleEndCall = () => {
+    if (activeCallSession) {
+      setQueue((prev) =>
+        prev.map((m) => (m.id === activeCallSession.id ? { ...m, status: "completed" } : m))
+      );
+    }
+    setIsRoomModalOpen(false);
+    setActiveCallSession(null);
+  };
+
+  const activeWaiting = queue.filter((m) => m.status === "waiting");
+
   return (
     <div className="space-y-6">
       {/* ── 1. Header & Status Toggle ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl font-serif">
-            Listener Workspace
+            Peer Listener Workspace
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Offer warm, empathetic peer support while upholding active listening boundaries.
@@ -135,8 +202,8 @@ export function ListenerDashboardView({
             <span className="text-xs font-semibold uppercase tracking-wider">Queue</span>
             <Users className="size-4 text-emerald-600" />
           </div>
-          <div className="text-2xl font-bold text-foreground">{MOCK_WAITING_MEMBERS.length} waiting</div>
-          <p className="text-[11px] text-muted-foreground">Avg wait time ~ 5 mins</p>
+          <div className="text-2xl font-bold text-foreground">{activeWaiting.length} waiting</div>
+          <p className="text-[11px] text-muted-foreground">Avg wait time ~ 4 mins</p>
         </Card>
 
         <Card className="p-4 border-border/60 space-y-1.5">
@@ -144,8 +211,10 @@ export function ListenerDashboardView({
             <span className="text-xs font-semibold uppercase tracking-wider">Today</span>
             <CheckCircle2 className="size-4 text-blue-600" />
           </div>
-          <div className="text-2xl font-bold text-foreground">3 completed</div>
-          <p className="text-[11px] text-muted-foreground">Peer sessions fulfilled</p>
+          <div className="text-2xl font-bold text-foreground">
+            {queue.filter((m) => m.status === "completed").length + 3} fulfilled
+          </div>
+          <p className="text-[11px] text-muted-foreground">Consultations completed</p>
         </Card>
 
         <Card className="p-4 border-border/60 space-y-1.5">
@@ -163,7 +232,7 @@ export function ListenerDashboardView({
             <BadgeCheck className="size-4 text-purple-600" />
           </div>
           <div className="text-2xl font-bold text-foreground">Active</div>
-          <p className="text-[11px] text-muted-foreground">Module 3 passed</p>
+          <p className="text-[11px] text-muted-foreground">Verified Level 2 Listener</p>
         </Card>
       </div>
 
@@ -171,11 +240,11 @@ export function ListenerDashboardView({
       <Card className="p-5 border-border/60">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-base font-semibold text-foreground">Active Peer Support Queue</h2>
-            <p className="text-xs text-muted-foreground">Members currently waiting to connect with a listener.</p>
+            <h2 className="text-base font-semibold text-foreground">Incoming Consultation & Queue Requests</h2>
+            <p className="text-xs text-muted-foreground">Review member intake context before connecting for the consultation.</p>
           </div>
           <Badge variant="secondary" className="text-xs">
-            {MOCK_WAITING_MEMBERS.length} Members in line
+            {activeWaiting.length} Members in line
           </Badge>
         </div>
 
@@ -183,34 +252,63 @@ export function ListenerDashboardView({
           <TableHeader>
             <TableRow>
               <TableHead>Member</TableHead>
-              <TableHead>Topic</TableHead>
-              <TableHead>Channel</TableHead>
-              <TableHead>Waiting Time</TableHead>
-              <TableHead className="text-right">Action</TableHead>
+              <TableHead>Topic / Reason</TableHead>
+              <TableHead>Format</TableHead>
+              <TableHead>Wait Time</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {MOCK_WAITING_MEMBERS.map((req) => (
+            {queue.map((req) => (
               <TableRow key={req.id}>
                 <TableCell className="font-semibold text-sm">{req.displayName}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{req.topic}</TableCell>
+                <TableCell className="text-xs text-muted-foreground max-w-[240px] truncate">{req.topic}</TableCell>
                 <TableCell className="capitalize text-xs">
-                  <Badge variant="outline" className="text-xs capitalize">
+                  <Badge variant="outline" className="text-xs capitalize font-normal">
                     {req.channel}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Clock className="size-3 text-amber-500" />
-                  {req.waitingMinutes}m ago
+                <TableCell className="text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="size-3 text-amber-500" />
+                    {req.waitingMinutes}m ago
+                  </span>
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant="secondary"
+                    className={`text-[10px] font-semibold capitalize ${
+                      req.status === "completed"
+                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        : "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                    }`}
+                  >
+                    {req.status === "completed" ? "Completed" : "Waiting"}
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button
-                    size="sm"
-                    className="h-8 text-xs rounded-lg bg-[#236B54] hover:bg-[#1a5240] text-white"
-                    onClick={() => toast.success(`Connected to ${req.displayName}`, { description: "Opening secure peer support chat room…" })}
-                  >
-                    Accept & Chat
-                  </Button>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleOpenIntake(req)}
+                      className="h-8 text-xs rounded-xl gap-1.5 px-3 border-emerald-300 text-emerald-800 dark:border-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
+                    >
+                      <FileText className="size-3.5" />
+                      <span>View Intake</span>
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      disabled={req.status === "completed" || !isAvailable}
+                      className="h-8 text-xs rounded-xl bg-[#236B54] hover:bg-[#1a5240] text-white gap-1.5 px-3"
+                      onClick={() => handleStartCall(req)}
+                    >
+                      <Headphones className="size-3.5" />
+                      <span>Start Call</span>
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -223,10 +321,28 @@ export function ListenerDashboardView({
         <ShieldAlert className="size-5 shrink-0 text-amber-600 mt-0.5" />
         <div>
           <span className="font-semibold block mb-0.5">Peer Support Protocols & Safety Guidelines:</span>
-          <span>Remember that peer listeners provide empathetic presence, not psychiatric diagnoses or medical advice. If a member expresses immediate danger or crisis, utilize the 1-Click Crisis Handoff tool to alert Safety Operations.</span>
+          <span>Remember that peer listeners provide empathetic presence, not psychiatric diagnoses or medical advice. If a member expresses immediate danger or crisis, utilize the 1-Click Crisis Handoff tool inside the call room to instantly alert Safety Operations.</span>
         </div>
       </div>
+
+      {/* ── 5. Integrated Modals ── */}
+      <MemberIntakeViewModal
+        open={isIntakeModalOpen}
+        onOpenChange={setIsIntakeModalOpen}
+        member={selectedMemberForIntake}
+        onStartSession={() => {
+          if (selectedMemberForIntake) {
+            handleStartCall(selectedMemberForIntake);
+          }
+        }}
+      />
+
+      <ListenerSessionRoomModal
+        open={isRoomModalOpen}
+        onOpenChange={setIsRoomModalOpen}
+        memberSession={activeCallSession}
+        onSessionEnded={handleEndCall}
+      />
     </div>
   );
 }
-

@@ -112,7 +112,7 @@ export default function LoginPage() {
               callbackURL: dashboardPath,
               rememberMe: true,
             }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("IAM_TIMEOUT")), 600)),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("IAM_TIMEOUT")), 80)),
           ]);
         }
       } catch {
@@ -256,48 +256,13 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="relative flex items-center justify-center">
+          <div className="relative flex items-center justify-center pt-2">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-border/60" />
+              <span className="w-full border-t border-border/50" />
             </div>
             <span className="relative bg-card px-2 text-[11px] uppercase tracking-wider text-muted-foreground">
-              Or sign in with custom credentials
+              Or sign in with email & password
             </span>
-          </div>
-
-          {/* Role Workspace Selector */}
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Select Your Role Workspace
-            </Label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {(Object.keys(ROLE_CONFIGS) as RoleOption[]).map((r) => {
-                const config = ROLE_CONFIGS[r];
-                const Icon = config.icon;
-                const isSelected = selectedRole === r;
-                return (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setSelectedRole(r)}
-                    className={`flex flex-col items-start p-2.5 rounded-xl border text-left transition-all duration-150 ${
-                      isSelected
-                        ? "border-emerald-600 bg-emerald-50/80 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-600/20 shadow-sm"
-                        : "border-border/60 hover:border-emerald-300 hover:bg-muted/40 text-muted-foreground"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between w-full mb-1">
-                      <Icon className={`size-4 ${isSelected ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`} />
-                      {isSelected && <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />}
-                    </div>
-                    <span className="text-xs font-semibold leading-tight line-clamp-1">{config.title}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-[11px] text-muted-foreground italic pt-0.5">
-              Target: <span className="font-mono text-emerald-700 dark:text-emerald-400">{dashboardPath}</span>
-            </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -371,32 +336,7 @@ export default function LoginPage() {
           </form>
         </CardContent>
 
-        <CardFooter className="pt-0 pb-6 flex flex-col space-y-4 border-t border-border/40 mt-2">
-          {/* Quick 1-Click Launch for Development & Demo */}
-          <div className="pt-4 w-full space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                ⚡ Instant Role Launch (1-Click)
-              </span>
-              <span className="text-[10px] text-emerald-600 font-medium">Bypasses Network Delay</span>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {(Object.keys(ROLE_CONFIGS) as RoleOption[]).map((r) => (
-                <Button
-                  key={r}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isSubmitting}
-                  onClick={() => handleQuickLaunch(r)}
-                  className="h-7 text-xs px-2.5 rounded-lg border-border/70 hover:bg-emerald-50 hover:text-emerald-800 dark:hover:bg-emerald-950/40 text-muted-foreground"
-                >
-                  {ROLE_CONFIGS[r].title.split(" ")[0]}
-                </Button>
-              ))}
-            </div>
-          </div>
-
+        <CardFooter className="pt-2 pb-6 flex flex-col space-y-4 border-t border-border/40 mt-2">
           <div className="text-xs text-center text-muted-foreground pt-1">
             Don&apos;t have an account?{" "}
             <Link

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * DateScroller — horizontal scrollable date picker for the booking wizard.
  *
  * Layer: client / telemedicine / patient / appointments / book
@@ -7,7 +7,7 @@
  * `availableDates` (ISO date strings, e.g. "2026-06-15") are shown as
  * disabled/greyed-out with an "Unavail." label.
  *
- * Adapted from drgodly-mvp DateScroll.tsx — changed `enabledDays` (day-of-week
+ * Adapted from mindspace DateScroll.tsx — changed `enabledDays` (day-of-week
  * Set) to `availableDates` (ISO date string Set) so the picker reflects actual
  * FHIR Slot availability rather than a weekly schedule.
  */

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * BookAppointment — 3-step appointment booking wizard.
  *
  * Layer: client / telemedicine / patient / appointments / book
@@ -109,7 +109,7 @@ interface BookAppointmentProps {
    * the Patient participant's reference_display — no separate fetch needed on read.
    */
   patientDisplayName?: string;
-  /** drgodly string userId from session (for org context). */
+  /** mindspace string userId from session (for org context). */
   userId: string;
   /** Active organisation ID from session. */
   orgId: string;
@@ -214,7 +214,7 @@ function getRoleAvailableDaysOfWeek(
  * Fetches FHIR data client-side via ZSA server actions.
  *
  * @param patientFhirId - FHIR integer patient ID (from session-guarded page).
- * @param userId - drgodly string user ID.
+ * @param userId - mindspace string user ID.
  * @param orgId - Active organisation ID.
  */
 export function BookAppointment({

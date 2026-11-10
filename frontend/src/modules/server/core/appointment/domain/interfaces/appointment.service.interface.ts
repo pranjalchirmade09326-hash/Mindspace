@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Appointment service domain interface.
  *
  * Layer: server / core / appointment / domain
@@ -58,7 +58,7 @@ export interface IAppointmentService {
    * Calls GET /appointments/ with a user_id query param derived from the session —
    * NOT the fhir-gql /me endpoint which would resolve to the service account.
    *
-   * @param userId - The drgodly user ID whose appointments to fetch.
+   * @param userId - The mindspace user ID whose appointments to fetch.
    * @param query - Optional filters (status, start_from, start_to, limit, offset).
    * @returns Paginated list of appointments for the given user.
    */

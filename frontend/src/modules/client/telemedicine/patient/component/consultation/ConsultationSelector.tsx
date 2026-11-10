@@ -1,9 +1,9 @@
-/**
+﻿/**
  * ConsultationSelector — entry-point card picker for the patient AI consultation flow.
  *
  * Layer: client / telemedicine / patient / component / consultation
  *
- * Mirrors drgodly-mvp ConsultationSelector exactly:
+ * Mirrors mindspace ConsultationSelector exactly:
  *   - Text Consultation card (enabled) → /consultation/chat
  *   - Voice Consultation card (disabled, "Coming Soon") → non-navigable
  *
