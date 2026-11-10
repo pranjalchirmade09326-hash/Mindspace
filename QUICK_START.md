@@ -1,203 +1,221 @@
-# Mindspace Quick Start Guide
+# 🎬 MindSpace - Quick Start (5 Minutes)
 
-Get the Mindspace platform up and running in 5 minutes!
-
-## Prerequisites
-
-- Python 3.9+
-- PostgreSQL 12+
-- Node.js 16+
-- Git
-- pip or uv package manager
-
-## Step 1: Clone & Install (2 minutes)
-
+## Step 1: Start Services (1 min)
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/mindspace.git
-cd mindspace
-
-# Backend setup
-cd backend/mindspace-fastapi
-uv sync  # or: pip install -r requirements.txt
-
-# Frontend setup (in another terminal)
-cd frontend
-npm install  # or: pnpm install
+cd D:\Mindspace\frontend
+docker compose up -d
 ```
 
-## Step 2: Database Setup (1 minute)
-
+Wait for all services to be "healthy":
 ```bash
-# Backend directory: backend/mindspace-fastapi
-
-# Run migrations
-alembic upgrade head
-
-# (Optional) Seed sample data
-python scripts/seed_data.py
+docker compose ps
+# Output should show:
+# - mindspace-frontend-postgres: healthy ✓
+# - mindspace-frontend: healthy ✓
+# - mindspace-redis: healthy ✓
 ```
 
-## Step 3: Start Backend API (1 minute)
-
-```bash
-# In backend/mindspace-fastapi directory
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+## Step 2: Open in Chrome (30 sec)
+```
+http://localhost:4000/en
 ```
 
-Backend API available at: **http://localhost:8000**
-API Documentation at: **http://localhost:8000/docs** (Swagger UI)
+You should see the beautiful landing page! 🎉
 
-## Step 4: Start Frontend (1 minute)
+## Step 3: Try Demo Login (1 min)
 
-```bash
-# In frontend directory
-npm run dev  # or: pnpm dev
+### Option A: Click "Try Demo" Button
+1. On landing page, find "Try Demo" button
+2. Click → goes to demo login page
+3. See all demo accounts
+
+### Option B: Direct Demo Login URL
+```
+http://localhost:4000/en/demo-login
 ```
 
-Frontend available at: **http://localhost:5173** (or similar)
+## Step 4: Quick Test (2 min)
 
-## First API Call
+### Test Member Dashboard
+1. Click on **"Sarah Chen"** card (member)
+2. Credentials auto-copy
+3. Click "Sign In"
+4. ✨ Member Dashboard appears!
+5. See: Profile, Stats, Journal Entries
 
-```bash
-# Test the health endpoint
-curl http://localhost:8000/api/v1/health
-
-# Create an admin user
-curl -X POST http://localhost:8000/api/v1/admins \
-  -H "Content-Type: application/json" \
-  -d '{
-    "user_id": "user_001",
-    "email": "admin@mindspace.com",
-    "role": "admin",
-    "permissions": ["read", "write"],
-    "department": "Management"
-  }'
-```
-
-## First Dashboard Access
-
-1. Open **http://localhost:5173** in your browser
-2. Log in with test credentials (if seed data was loaded)
-3. Navigate to Admin Dashboard, Supervisor Dashboard, or Safety Dashboard
-
-## Environment Variables
-
-Create `.env` file in backend/mindspace-fastapi:
-
-```bash
-# Database
-DATABASE_URL=postgresql+asyncpg://user:password@localhost/mindspace_db
-
-# API Configuration
-API_VERSION=v1
-DEBUG=True
-LOG_LEVEL=INFO
-
-# Authentication (if applicable)
-AUTH_SECRET_KEY=your-secret-key-here
-```
-
-Create `.env` file in frontend:
-
-```bash
-# API Configuration
-VITE_API_URL=http://localhost:8000/api/v1
-VITE_WS_URL=ws://localhost:8000/ws
-
-# Feature Flags
-VITE_ENABLE_REAL_TIME=true
-```
-
-## Common Issues & Solutions
-
-### Issue: "Connection refused" on database
-
-**Solution**: Ensure PostgreSQL is running
-```bash
-# Windows (PowerShell)
-Get-Service PostgreSQL*
-
-# Linux/Mac
-brew services list  # macOS
-sudo service postgresql status  # Linux
-```
-
-### Issue: "Module not found: sqlalchemy"
-
-**Solution**: Reinstall dependencies
-```bash
-cd backend/mindspace-fastapi
-uv sync --force
-# or
-pip install -r requirements.txt
-```
-
-### Issue: "Uvicorn not found"
-
-**Solution**: Install from backend directory
-```bash
-cd backend/mindspace-fastapi
-pip install uvicorn fastapi sqlalchemy
-```
-
-### Issue: Port 8000 already in use
-
-**Solution**: Use different port
-```bash
-uvicorn app.main:app --reload --port 8001
-```
-
-### Issue: Frontend can't connect to backend
-
-**Solution**: Check VITE_API_URL in frontend .env
-```bash
-# Should match your backend URL
-VITE_API_URL=http://localhost:8000/api/v1
-```
-
-## Verify Installation
-
-```bash
-# Check Python version
-python --version  # Should be 3.9+
-
-# Check PostgreSQL version
-psql --version
-
-# Check Node version
-node --version
-
-# Test backend API
-curl -s http://localhost:8000/api/v1/health | jq
-
-# Test frontend (should return HTML)
-curl -s http://localhost:5173 | head -20
-```
-
-## Next Steps
-
-1. Read the [COMPLETE_DASHBOARD_BUILD_GUIDE.md](COMPLETE_DASHBOARD_BUILD_GUIDE.md) for architecture overview
-2. Check [BACKEND_API_REFERENCE.md](BACKEND_API_REFERENCE.md) for API documentation
-3. Review [DATABASE_SCHEMA_GUIDE.md](DATABASE_SCHEMA_GUIDE.md) for database structure
-4. Set up IDE debugger (see [DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md))
-
-## Quick Reference
-
-| Component | URL | Command |
-|-----------|-----|---------|
-| Backend API | http://localhost:8000 | `uvicorn app.main:app --reload` |
-| API Docs | http://localhost:8000/docs | (Auto-generated) |
-| Frontend | http://localhost:5173 | `npm run dev` |
-| Database | localhost:5432 | `psql -U postgres` |
-
-## Support
-
-- **Docs**: See markdown files in project root
-- **API Issues**: Check http://localhost:8000/docs
-- **Database Issues**: Review DATABASE_SCHEMA_GUIDE.md
-- **Frontend Issues**: Check browser console for errors
+### Test Listener Dashboard
+1. Go back to demo-login
+2. Click on **"Marcus Johnson"** card (listener)
+3. Sign in
+4. ✨ Listener Dashboard appears!
+5. See: Profile, Rating, Conversations
 
 ---
 
-**Ready to develop?** Go to [COMPLETE_DASHBOARD_BUILD_GUIDE.md](COMPLETE_DASHBOARD_BUILD_GUIDE.md) for the full architecture!
+## 🎯 Demo Accounts (Copy-Paste Ready)
+
+### Members
+```
+📧 member@demo.com          👤 Sarah Chen (15 journals, 7-day streak)
+🔑 demo123456
+
+📧 member2@demo.com         👤 Alex Rivera (8 journals, 4-day streak)
+🔑 demo123456
+```
+
+### Listeners
+```
+📧 listener@demo.com        👤 Marcus Johnson (42 chats, 4.8★ rating)
+🔑 demo123456
+
+📧 listener2@demo.com       👤 Emma Williams (58 chats, 4.9★ rating)
+🔑 demo123456
+```
+
+### Admin
+```
+📧 admin@demo.com           👤 Admin User
+🔑 demo123456
+```
+
+---
+
+## 📱 What You'll See
+
+### Landing Page
+- ✅ Beautiful hero section
+- ✅ "Try Demo" call-to-action
+- ✅ Features showcase
+- ✅ Testimonials
+- ✅ Professional layout
+
+### Demo Login Page
+- ✅ 5 account cards (color-coded by role)
+- ✅ Copy credentials with 1 click
+- ✅ Click to auto-login
+- ✅ Smooth animations
+
+### Member Dashboard
+- ✅ Welcome message with user name
+- ✅ Profile header with avatar
+- ✅ Stats cards:
+  - Journal Entries: **15**
+  - Support Sessions: **3**
+  - Consecutive Days: **7**
+- ✅ Mood indicator: **Happy** 😊
+- ✅ Refresh button
+
+### Listener Dashboard
+- ✅ Listener name & avatar
+- ✅ Performance metrics:
+  - Total Conversations: **42**
+  - Rating: **4.8/5.0**
+  - Response Time: **2 min**
+- ✅ Active status: **Yes**
+- ✅ Specialties: Anxiety Support
+- ✅ Professional stats grid
+
+---
+
+## 🔧 Troubleshooting
+
+### Port Already in Use?
+```bash
+# Change port in docker-compose.yml
+# Change "4000:3000" to "5000:3000"
+docker compose down
+docker compose up -d
+# Then open: http://localhost:5000/en
+```
+
+### PostgreSQL Connection Error?
+```bash
+# Check if PostgreSQL is running
+docker compose logs postgres
+
+# Restart it
+docker compose restart postgres
+```
+
+### Database Doesn't Have Demo Data?
+```bash
+# Seed demo users
+docker compose exec frontend pnpm exec tsx scripts/test-data/demo-users-seed.ts
+
+# Or use API
+curl -X POST http://localhost:4000/api/seed/demo-users
+```
+
+### Still Not Working?
+```bash
+# Full restart
+docker compose down -v
+docker compose up -d
+
+# Wait 30 seconds, then try again
+```
+
+---
+
+## 🌐 URLs to Test
+
+| URL | What You See |
+|-----|-------------|
+| http://localhost:4000/en | Landing Page |
+| http://localhost:4000/en/demo-login | Demo Login |
+| http://localhost:4000/en/login | Regular Sign-In |
+| http://localhost:4000/en/signup | Register New Account |
+
+---
+
+## ✨ Features You're Testing
+
+✅ Professional landing page
+✅ Demo login system
+✅ Member dashboard with stats
+✅ Listener dashboard with metrics
+✅ Database integration
+✅ Authentication flow
+✅ Responsive design (try on phone!)
+✅ Dark mode (toggle in top-right)
+
+---
+
+## 🎓 What's Next?
+
+1. **Explore Member Features**
+   - Try different moods
+   - View journal entries
+   - Check activity stats
+
+2. **Explore Listener Features**
+   - Check availability
+   - View specialties
+   - See rating & reviews
+
+3. **Test Real Sign-Up**
+   - Create your own account
+   - Set a custom profile
+   - Experience full workflow
+
+4. **Check Responsiveness**
+   - Open DevTools (F12)
+   - Toggle device toolbar (Ctrl+Shift+M)
+   - Test on mobile view
+
+---
+
+## 💡 Pro Tips
+
+💡 **Dark Mode**: Look for sun/moon icon in navbar
+💡 **Language Switch**: Change language in top-right
+💡 **Copy Credentials**: One-click copy on demo cards
+💡 **Auto-Fill**: Credentials auto-fill in sign-in form
+💡 **Refresh**: Click refresh button on dashboards to reload data
+💡 **Responsive**: Resize window to see responsive design
+
+---
+
+**You're all set! Enjoy exploring MindSpace! 🚀**
+
+Need help? Check DEMO_SETUP_GUIDE.md for detailed documentation.
