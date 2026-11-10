@@ -14,6 +14,88 @@ model Test {
     name String
 }
 
+// ── Member & Listener Profiles ───────────────────────────────────────────────
+
+enum MoodType {
+  HAPPY
+  SAD
+  ANXIOUS
+  NEUTRAL
+  STRESSED
+}
+
+enum TrainingStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+}
+
+/**
+ * MindSpace member profile linked to Better Auth user.
+ * Stores member-specific data like mood tracking, journal entries, and engagement metrics.
+ */
+model MemberProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique // Better Auth user ID
+  displayName       String
+  avatar            String?  // URL to avatar image
+  moodToday         MoodType @default(NEUTRAL)
+  journalEntries    Int      @default(0)
+  supportSessions   Int      @default(0)
+  consecutiveDays   Int      @default(0)
+  lastActive        DateTime @default(now())
+  bio               String?
+  preferredTopics   Json     @default("[]") // JSON array: ["anxiety", "stress", ...]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+  @@index([lastActive])
+  @@map("member_profiles")
+}
+
+/**
+ * MindSpace listener (supporter) profile linked to Better Auth user.
+ * Stores listener-specific data like ratings, availability, and specialties.
+ */
+model ListenerProfile {
+  id                  String         @id @default(uuid())
+  userId              String         @unique // Better Auth user ID
+  displayName         String
+  avatar              String?        // URL to avatar image
+  totalConversations  Int            @default(0)
+  activeNow           Boolean        @default(false)
+  rating              Float          @default(5.0) // 0-5 scale
+  responseTime        Int            @default(0) // in minutes
+  availability        Json           @default("[]") // JSON array: ["monday", "tuesday", ...]
+  specialties         Json           @default("[]") // JSON array: ["anxiety-support", ...]
+  bio                 String?
+  trainingStatus      TrainingStatus @default(PENDING)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([userId])
+  @@index([activeNow])
+  @@index([trainingStatus])
+  @@map("listener_profiles")
+}
+
+/**
+ * Demo user credentials for quick sign-in testing.
+ * Stores hashed passwords and role information for demo accounts.
+ */
+model DemoUser {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // Should be hashed using bcrypt or similar
+  role      String   // "member", "listener", "admin"
+  profile   Json     // Contains profile data for the user
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@map("demo_users")
+}
+
 // ── Intake ────────────────────────────────────────────────────────────────────
 
 /** Channel through which the intake was conducted. */

@@ -23,6 +23,7 @@ import Features from "@/modules/client/(marketing)/components/Features";
 import HowItWorks from "@/modules/client/(marketing)/components/HowItWorks";
 import Testimonials from "@/modules/client/(marketing)/components/Testimonials";
 import Cta from "@/modules/client/(marketing)/components/Cta";
+import DemoAccessSection from "@/modules/client/(marketing)/components/DemoAccessSection";
 import Footer from "@/modules/client/(marketing)/components/Footer";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,7 @@ export default async function Home() {
       <main>
         <Hero session={session} />
         <Features />
+        <DemoAccessSection />
         <HowItWorks />
         <Testimonials />
         <Cta session={session} />

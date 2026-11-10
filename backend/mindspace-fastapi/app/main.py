@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from app.core.config import settings
 from app.core.init_db import init_and_seed_db
-from app.routers import health, dashboards, member, wellbeing, intakes, peer, operations
+from app.routers import health, dashboards, member, wellbeing, intakes, peer, operations, admins, supervisors, safetys
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,6 +39,9 @@ app.include_router(wellbeing.router)
 app.include_router(intakes.router)
 app.include_router(peer.router)
 app.include_router(operations.router)
+app.include_router(admins.router)
+app.include_router(supervisors.router)
+app.include_router(safetys.router)
 
 @app.get("/api-docs", include_in_schema=False)
 async def api_docs_redirect():
