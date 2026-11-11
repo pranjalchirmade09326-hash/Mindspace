@@ -2,6 +2,7 @@ import "server-only";
 
 import { headers } from "next/headers";
 import { decodeJwt } from "jose";
+import { getServerSession } from "@/modules/server/auth/get-session";
 
 export interface BetterAuthIdentity {
   id: string;
@@ -44,6 +45,20 @@ async function requestBetterAuth(path: string): Promise<Response> {
 }
 
 export async function getMindspaceAuthSession(): Promise<BetterAuthIdentity | null> {
+  // 1. Check server session cookie first
+  try {
+    const session = await getServerSession();
+    if (session?.user?.id) {
+      return {
+        id: session.user.id,
+        name: typeof session.user.name === "string" ? session.user.name : null,
+        email: typeof session.user.email === "string" ? session.user.email : null,
+      };
+    }
+  } catch {
+    // Continue
+  }
+
   try {
     const response = await requestBetterAuth("/api/auth/get-session");
     if (!response.ok) {

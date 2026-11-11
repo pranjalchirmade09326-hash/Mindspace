@@ -110,7 +110,7 @@ export function MemberAppointmentsView() {
 
   const loadLiveSessions = useCallback(async () => {
     try {
-      const res = await fetch("http://localhost:8080/api/v1/peer/conversations");
+      const res = await fetch("/api/mindspace/member/conversations");
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -200,7 +200,7 @@ export function MemberAppointmentsView() {
   const confirmCancel = async () => {
     if (!sessionToCancel) return;
     try {
-      await fetch(`http://localhost:8080/api/v1/peer/conversations/${sessionToCancel.id}/close`, {
+      await fetch(`/api/mindspace/member/conversations/${sessionToCancel.id}/close`, {
         method: "PUT",
       });
     } catch {}

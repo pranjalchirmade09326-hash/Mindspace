@@ -85,20 +85,12 @@ function PortalHeader({
   role: NonNullable<ReturnType<typeof getDashboardRole>>;
   section?: DashboardSection;
 }) {
-  const Icon = section?.icon ?? role.icon;
+  if (section) return null;
+  const Icon = role.icon;
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
-          {section && (
-            <Link
-              href={`/mindspace/${role.id}`}
-              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="size-4" aria-hidden="true" />
-              Back to {role.shortTitle} dashboard
-            </Link>
-          )}
           <div className="flex items-center gap-3">
             <div className={`flex size-11 items-center justify-center rounded-2xl ${role.accent}`}>
               <Icon className="size-5" aria-hidden="true" />
@@ -108,12 +100,12 @@ function PortalHeader({
                 MindSpace Connected Care
               </p>
               <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                {section?.title ?? role.welcome}
+                {role.welcome}
               </h1>
             </div>
           </div>
           <p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
-            {section?.description ?? role.summary}
+            {role.summary}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -265,125 +257,61 @@ function SectionPage({
   // Authentic MindSpace Member workflows
   if (role.id === "member") {
     if (section.id === "mood") {
-      return (
-        <>
-          <PortalHeader role={role} section={section} />
-          <MemberMoodView />
-        </>
-      );
+      return <MemberMoodView />;
     }
     if (section.id === "journal") {
-      return (
-        <>
-          <PortalHeader role={role} section={section} />
-          <MemberJournalView />
-        </>
-      );
+      return <MemberJournalView />;
     }
     if (section.id === "goals") {
-      return (
-        <>
-          <PortalHeader role={role} section={section} />
-          <MemberGoalsView />
-        </>
-      );
+      return <MemberGoalsView />;
     }
     if (section.id === "my-support" || section.id === "appointments") {
-      return (
-        <>
-          <PortalHeader role={role} section={section} />
-          <MemberAppointmentsView />
-        </>
-      );
+      return <MemberAppointmentsView />;
     }
     if (section.id === "wellbeing" || section.id === "vitals") {
-      return (
-        <>
-          <PortalHeader role={role} section={section} />
-          <MemberVitalsView />
-        </>
-      );
+      return <MemberVitalsView />;
     }
     if (section.id === "medical-records") {
-      return (
-        <>
-          <PortalHeader role={role} section={section} />
-          <MemberRecordsView />
-        </>
-      );
+      return <MemberRecordsView />;
     }
     if (section.id === "consultation") {
-      return (
-        <>
-          <PortalHeader role={role} section={section} />
-          <MemberConsultationView />
-        </>
-      );
+      return <MemberConsultationView />;
     }
     if (section.id === "profile") {
-      return (
-        <>
-          <PortalHeader role={role} section={section} />
-          <MemberProfileView />
-        </>
-      );
+      return <MemberProfileView />;
     }
   }
 
-  // Remapped Telemedicine Doctor -> MindSpace Listener workflows
+  // MindSpace Peer Listener workflows
   if (role.id === "listener") {
-    if (section.id === "consultations" || section.id === "conversations") {
-      return (
-        <>
-          <PortalHeader role={role} section={section} />
-          <ListenerConsultationsView />
-        </>
-      );
+    if (section.id === "consultations") {
+      return <ListenerConsultationsView />;
     }
     if (section.id === "members") {
-      return (
-        <>
-          <PortalHeader role={role} section={section} />
-          <ListenerMembersView />
-        </>
-      );
+      return <ListenerMembersView />;
     }
-    if (section.id === "profile" || section.id === "application") {
-      return (
-        <>
-          <PortalHeader role={role} section={section} />
-          <ListenerProfileView />
-        </>
-      );
+    if (section.id === "profile") {
+      return <ListenerProfileView />;
     }
   }
 
   // Remapped Telemedicine Admin -> MindSpace Supervisor, Safety & Platform Admin workflows
   if (role.id === "listener-supervisor") {
     return (
-      <>
-        <PortalHeader role={role} section={section} />
-        <SupervisorDashboardView />
-      </>
+      <SupervisorDashboardView
+        sectionId={section.id}
+        sectionTitle={section.title}
+        sectionDescription={section.description}
+      />
     );
   }
 
   if (role.id === "safety-operations") {
-    return (
-      <>
-        <PortalHeader role={role} section={section} />
-        <SafetyOperationsDashboardView />
-      </>
-    );
+    return <SafetyOperationsDashboardView />;
   }
 
   if (role.id === "platform-administrator") {
-    return (
-      <>
-        <PortalHeader role={role} section={section} />
-        <AdminDashboardView />
-      </>
-    );
+    return <AdminDashboardView />;
   }
 
   // When the API returned rows for this section they replace the sample
@@ -393,15 +321,13 @@ function SectionPage({
   const rows = override?.rows ?? section.rows;
 
   return (
-    <>
-      <PortalHeader role={role} section={section} />
-      <Card>
-        <CardHeader>
-          <CardTitle>{section.title}</CardTitle>
-          <CardDescription>
-            {section.description}
-          </CardDescription>
-        </CardHeader>
+    <Card>
+      <CardHeader>
+        <CardTitle>{section.title}</CardTitle>
+        <CardDescription>
+          {section.description}
+        </CardDescription>
+      </CardHeader>
         <CardContent className="space-y-3">
           <div
             className="hidden gap-4 px-4 text-xs font-medium uppercase tracking-wide text-muted-foreground md:grid"
@@ -427,7 +353,6 @@ function SectionPage({
           ))}
         </CardContent>
       </Card>
-    </>
   );
 }
 
@@ -642,7 +567,6 @@ export function MindspaceRoleSection({
         currentSection={section}
         live={live}
       >
-        <PortalHeader role={role} section={section} />
         <AuthRequired role={role} />
       </RoleWorkspaceLayout>
     );

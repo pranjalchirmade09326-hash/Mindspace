@@ -90,7 +90,7 @@ export const telemedicineSidebarData = {
         },
         {
           title: "My Support Sessions",
-          url: "/mindspace/member/my-support",
+          url: "/mindspace/member/appointments",
           icon: "calendar-check",
         },
         {

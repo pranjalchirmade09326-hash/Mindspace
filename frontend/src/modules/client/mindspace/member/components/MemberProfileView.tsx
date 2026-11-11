@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { useSession } from "@/modules/client/auth/betterauth/auth-client";
 import {
   User,
   ShieldCheck,
@@ -38,9 +39,10 @@ export function MemberProfileView({
   initialEmail = "member@mindspace.test",
   initialPhone = "+91 98765 43210",
 }: MemberProfileViewProps) {
-  const [displayName, setDisplayName] = useState(initialDisplayName);
+  const { data: authSession } = useSession();
+  const [displayName, setDisplayName] = useState(authSession?.user?.name || initialDisplayName);
   const [pronouns, setPronouns] = useState("they/them");
-  const [email, setEmail] = useState(initialEmail);
+  const [email, setEmail] = useState(authSession?.user?.email || initialEmail);
   const [phone, setPhone] = useState(initialPhone);
   const [languages, setLanguages] = useState("English, Hindi");
   const [emergencyContact, setEmergencyContact] = useState("Aarohi (Sister) - +91 98111 22334");
@@ -49,13 +51,22 @@ export function MemberProfileView({
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    if (authSession?.user?.name) {
+      setDisplayName(authSession.user.name);
+    }
+    if (authSession?.user?.email) {
+      setEmail(authSession.user.email);
+    }
+  }, [authSession?.user?.name, authSession?.user?.email]);
+
+  useEffect(() => {
     fetch("http://localhost:8080/api/v1/members/me/profile")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data?.displayName) setDisplayName(data.displayName);
+        if (data?.displayName && !authSession?.user?.name) setDisplayName(data.displayName);
       })
       .catch(() => {});
-  }, []);
+  }, [authSession?.user?.name]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +104,7 @@ export function MemberProfileView({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl font-serif">
-            Member Profile & Preferences
+            Member Settings & Profile
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Manage your personal identity, listener confidentiality options, and trusted contacts.

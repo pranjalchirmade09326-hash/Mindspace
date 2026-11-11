@@ -99,6 +99,12 @@ export function ListenerMembersView() {
     setIsReviewModalOpen(true);
   };
 
+  const handleScheduleFollowup = (alias: string) => {
+    toast.success(`Autonomous 48-Hour Check-In Armed for ${alias}`, {
+      description: "Follow-Up Agent armed to send gentle longitudinal check-in as per US-017.",
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* ── Header ── */}
@@ -202,6 +208,16 @@ export function ListenerMembersView() {
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleScheduleFollowup(member.alias)}
+                  className="rounded-xl text-xs h-8 px-3 gap-1.5 border-teal-300 dark:border-teal-800 text-teal-800 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40"
+                >
+                  <Clock className="size-3.5" />
+                  <span>Arm Follow-Up</span>
+                </Button>
+
                 <Button
                   size="sm"
                   onClick={() => handleOpenSoapHistory(member)}

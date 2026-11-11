@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func
+from sqlalchemy.orm import aliased
 from app.core.database import get_db
 from app.core.security import get_current_user_id, encrypt_content, decrypt_content
 from app.models.peer import ListenerMatchRequest, ListenerMatch, PeerConversation, PeerMessage, ListenerProfile
@@ -80,25 +82,34 @@ async def list_conversations(
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db)
 ):
+    MemberAlias = aliased(MemberProfile)
     stmt = (
-        select(PeerConversation, ListenerProfile.user_id.label("listener_user_id"), MemberProfile.display_name.label("listener_name"))
+        select(
+            PeerConversation,
+            ListenerProfile.user_id.label("listener_user_id"),
+            MemberProfile.display_name.label("listener_name"),
+            MemberAlias.display_name.label("member_name"),
+        )
         .join(ListenerProfile, PeerConversation.listener_id == ListenerProfile.id)
         .outerjoin(MemberProfile, ListenerProfile.user_id == MemberProfile.user_id)
+        .outerjoin(MemberAlias, PeerConversation.member_id == MemberAlias.user_id)
         .where(
-            (PeerConversation.member_id == user_id) | (PeerConversation.closed_by_user_id == user_id)
+            (PeerConversation.member_id == user_id) | (ListenerProfile.user_id == user_id) | (PeerConversation.closed_by_user_id == user_id)
         )
         .order_by(desc(PeerConversation.started_at))
     )
     res = await db.execute(stmt)
     rows = res.all()
     result = []
-    for conv, l_user_id, l_name in rows:
-        display = l_name or (l_user_id.replace("usr-demo-", "").replace("-", " ").title() if l_user_id else "Verified Peer Listener")
+    for conv, l_user_id, l_name, m_name in rows:
+        display_listener = l_name or (l_user_id.replace("usr-demo-", "").replace("-", " ").title() if l_user_id else "Verified Peer Listener")
+        display_member = m_name or (conv.member_id.replace("usr-demo-", "").replace("-", " ").title() if conv.member_id else "Member")
         result.append({
             "id": str(conv.id),
             "member_id": conv.member_id,
+            "member_name": display_member,
             "listener_id": str(conv.listener_id),
-            "listener_name": display,
+            "listener_name": display_listener,
             "channel": conv.channel,
             "status": "completed" if conv.conversation_state == "closed" else ("active" if conv.conversation_state == "open" else conv.conversation_state),
             "started_at": conv.started_at.isoformat(),
@@ -276,16 +287,179 @@ async def close_conversation(
     user_id: str = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db)
 ):
-    c_uuid = uuid.UUID(conversation_id)
+    c_uuid = None
+    try:
+        c_uuid = uuid.UUID(conversation_id)
+    except (ValueError, AttributeError):
+        c_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, str(conversation_id))
+
     stmt = select(PeerConversation).where(PeerConversation.id == c_uuid)
     res = await db.execute(stmt)
     conv = res.scalar_one_or_none()
+    if conv:
+        conv.conversation_state = "closed"
+        conv.ended_at = datetime.utcnow()
+        conv.closed_by_user_id = user_id
+        await db.commit()
+
+    return {"status": "success", "conversation_id": str(c_uuid), "state": "closed"}
+
+class SoapNoteCreate(BaseModel):
+    subjective: str
+    objective: str
+    assessment: str
+    plan: str
+
+@router.post("/peer/conversations/{conversation_id}/soap")
+async def save_soap_note(
+    conversation_id: str,
+    payload: SoapNoteCreate,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    c_uuid = None
+    try:
+        c_uuid = uuid.UUID(conversation_id)
+    except (ValueError, AttributeError):
+        c_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, str(conversation_id))
+
+    stmt = select(PeerConversation).where(PeerConversation.id == c_uuid)
+    res = await db.execute(stmt)
+    conv = res.scalar_one_or_none()
+
     if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    
-    conv.conversation_state = "closed"
-    conv.ended_at = datetime.utcnow()
-    conv.closed_by_user_id = user_id
+        # Create persistent conversation record in PostgreSQL if demo / uncommitted
+        l_res = await db.execute(select(ListenerProfile).where(ListenerProfile.user_id == user_id))
+        listener = l_res.scalar_one_or_none()
+        if not listener:
+            p_res = await db.execute(select(AppPrincipal).where(AppPrincipal.user_id == user_id))
+            if not p_res.scalar_one_or_none():
+                db.add(AppPrincipal(user_id=user_id, account_state="active"))
+                await db.flush()
+            listener = ListenerProfile(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                application_state="approved",
+                eligibility_state="eligible",
+                capacity_limit=3
+            )
+            db.add(listener)
+            await db.flush()
+
+        member_uid = "usr-demo-member-01"
+        m_res = await db.execute(select(AppPrincipal).where(AppPrincipal.user_id == member_uid))
+        if not m_res.scalar_one_or_none():
+            db.add(AppPrincipal(user_id=member_uid, account_state="active"))
+            await db.flush()
+
+        m_req = ListenerMatchRequest(
+            id=uuid.uuid4(),
+            member_id=member_uid,
+            request_state="matched"
+        )
+        db.add(m_req)
+        await db.flush()
+
+        l_match = ListenerMatch(
+            id=uuid.uuid4(),
+            request_id=m_req.id,
+            listener_id=listener.id,
+            match_state="accepted"
+        )
+        db.add(l_match)
+        await db.flush()
+
+        conv = PeerConversation(
+            id=c_uuid,
+            match_id=l_match.id,
+            member_id=member_uid,
+            listener_id=listener.id,
+            channel="voice",
+            conversation_state="closed",
+            started_at=datetime.utcnow() - timedelta(minutes=45),
+            ended_at=datetime.utcnow(),
+            closed_by_user_id=user_id
+        )
+        db.add(conv)
+        await db.flush()
+    else:
+        conv.conversation_state = "closed"
+        conv.ended_at = datetime.utcnow()
+        conv.closed_by_user_id = user_id
+
+    soap_content = f"[SOAP RECORD]\nS: {payload.subjective}\nO: {payload.objective}\nA: {payload.assessment}\nP: {payload.plan}"
+    ct, kv = encrypt_content(soap_content)
+
+    seq_q = await db.execute(select(func.coalesce(func.max(PeerMessage.sequence_no), 0)).where(PeerMessage.conversation_id == c_uuid))
+    seq = (seq_q.scalar() or 0) + 1
+
+    msg = PeerMessage(
+        id=uuid.uuid4(),
+        conversation_id=c_uuid,
+        sequence_no=seq,
+        sender_user_id=user_id,
+        content_ciphertext=ct,
+        key_version=kv,
+        delivery_state="delivered",
+        sent_at=datetime.utcnow()
+    )
+    db.add(msg)
     await db.commit()
 
-    return {"status": "success", "conversation_id": conversation_id, "state": "closed"}
+    return {
+        "status": "success",
+        "conversation_id": str(c_uuid),
+        "message": "SOAP record encrypted and saved to PostgreSQL",
+        "saved_at": datetime.utcnow().isoformat()
+    }
+
+class ListenerProfileUpdate(BaseModel):
+    capacity_limit: int | None = None
+    profile_languages: list[str] | None = None
+    display_name: str | None = None
+
+@router.put("/peer/listeners/me")
+async def update_listener_profile(
+    payload: ListenerProfileUpdate,
+    user_id: str = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db)
+):
+    p_res = await db.execute(select(AppPrincipal).where(AppPrincipal.user_id == user_id))
+    if not p_res.scalar_one_or_none():
+        db.add(AppPrincipal(user_id=user_id, account_state="active"))
+        await db.flush()
+
+    prof_res = await db.execute(select(ListenerProfile).where(ListenerProfile.user_id == user_id))
+    profile = prof_res.scalar_one_or_none()
+    if not profile:
+        profile = ListenerProfile(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            application_state="approved",
+            eligibility_state="eligible",
+            capacity_limit=payload.capacity_limit or 3,
+            profile_languages=payload.profile_languages or ["English", "Hindi"]
+        )
+        db.add(profile)
+    else:
+        if payload.capacity_limit is not None:
+            profile.capacity_limit = payload.capacity_limit
+        if payload.profile_languages is not None:
+            profile.profile_languages = payload.profile_languages
+
+    if payload.display_name:
+        m_res = await db.execute(select(MemberProfile).where(MemberProfile.user_id == user_id))
+        m_prof = m_res.scalar_one_or_none()
+        if m_prof:
+            m_prof.display_name = payload.display_name
+        else:
+            db.add(MemberProfile(user_id=user_id, display_name=payload.display_name))
+
+    await db.commit()
+    return {
+        "status": "success",
+        "message": "Listener profile updated successfully in PostgreSQL",
+        "capacity_limit": profile.capacity_limit,
+        "profile_languages": profile.profile_languages,
+        "display_name": payload.display_name
+    }

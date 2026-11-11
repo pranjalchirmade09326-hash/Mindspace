@@ -80,7 +80,7 @@ export function MemberRecordsView() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   useEffect(() => {
-    fetch("http://localhost:8080/api/v1/peer/conversations")
+    fetch("/api/mindspace/member/conversations")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {

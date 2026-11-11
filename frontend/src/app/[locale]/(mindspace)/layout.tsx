@@ -8,26 +8,12 @@ import { getLocale } from "next-intl/server";
 export const dynamic = "force-dynamic";
 
 const MindspaceLayout = async ({ children }: { children: React.ReactNode }) => {
-  let session = await getServerSession();
+  const session = await getServerSession();
   const locale = await getLocale();
 
   if (!session) {
-    if (process.env.NODE_ENV !== "production") {
-      const devSession = getDevSession("patient");
-      session = {
-        ...devSession,
-        user: {
-          ...devSession.user,
-          name: "MindSpace Member",
-          email: "member@mindspace.test",
-          role: "member",
-        },
-        session: { ...devSession.session, activeRole: "member" },
-      };
-    } else {
-      redirect({ href: "/login", locale });
-      return null;
-    }
+    redirect({ href: "/login", locale });
+    return null;
   }
 
   const role =

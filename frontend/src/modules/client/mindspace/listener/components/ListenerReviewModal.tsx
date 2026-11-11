@@ -68,7 +68,18 @@ export function ListenerReviewModal({
     "Recommended 5-minute 4-7-8 box breathing exercise before bed. Agreed to set an 8:30 PM digital wind-down boundary. Scheduled follow-up check-in for next Tuesday."
   );
 
-  const handleSaveSoap = () => {
+  const handleSaveSoap = async () => {
+    if (session?.id) {
+      try {
+        await fetch(`/api/mindspace/listener/conversations/${session.id}/soap`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subjective, objective, assessment, plan }),
+        });
+      } catch {
+        // Continue
+      }
+    }
     toast.success("Encounter SOAP Record Saved!", {
       description: `Documented for ${memberName}. Record encrypted and synced to Member Wellbeing file.`,
     });

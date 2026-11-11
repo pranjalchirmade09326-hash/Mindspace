@@ -98,7 +98,7 @@ export function MemberVitalsView() {
 
   const loadLiveMoods = useCallback(async () => {
     try {
-      const res = await fetch("http://localhost:8080/api/v1/wellbeing/moods");
+      const res = await fetch("/api/mindspace/member/moods");
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -132,7 +132,7 @@ export function MemberVitalsView() {
 
   const handleLogVital = async () => {
     try {
-      await fetch("http://localhost:8080/api/v1/wellbeing/moods", {
+      await fetch("/api/mindspace/member/moods", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

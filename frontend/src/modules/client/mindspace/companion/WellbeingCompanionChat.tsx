@@ -259,7 +259,7 @@ export function WellbeingCompanionChat({
 
         <div className="flex items-center gap-2">
           <Button asChild size="sm" variant="outline" className="gap-2 text-xs h-8">
-            <Link href="/mindspace/member/my-support">
+            <Link href="/mindspace/member/appointments">
               <UsersRound className="size-3.5 text-primary" />
               Connect with a Human Listener
             </Link>

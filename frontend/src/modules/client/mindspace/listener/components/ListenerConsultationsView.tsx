@@ -6,7 +6,7 @@
  * Layer: modules / client / mindspace / listener / components
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -102,6 +102,34 @@ export function ListenerConsultationsView() {
   const [sessions, setSessions] = useState<TListenerSessionItem[]>(INITIAL_SESSIONS);
   const [filterTab, setFilterTab] = useState<"all" | "waiting" | "confirmed" | "completed">("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Live session queue loading
+  useEffect(() => {
+    async function loadSessions() {
+      try {
+        const res = await fetch("/api/mindspace/listener/conversations");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            const mapped: TListenerSessionItem[] = data.map((item: any, idx: number) => ({
+              id: item.id || `sess-d${idx + 1}`,
+              memberName: item.member_name || item.memberName || "Member",
+              topic: item.note || item.topic || "Work stress & active listening support",
+              channel: (item.channel === "voice" || item.channel === "video") ? item.channel : "chat",
+              timeSlot: item.started_at ? new Date(item.started_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Today",
+              status: item.status === "completed" ? "completed" : (item.status === "confirmed" ? "confirmed" : "waiting"),
+              urgency: "routine",
+              waitingMinutes: item.waitingMinutes || (idx + 1) * 3,
+            }));
+            setSessions(mapped);
+          }
+        }
+      } catch {
+        // Fallback to initial
+      }
+    }
+    loadSessions();
+  }, []);
 
   // Modals state
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
@@ -401,9 +429,16 @@ export function ListenerConsultationsView() {
         open={isRoomModalOpen}
         onOpenChange={setIsRoomModalOpen}
         memberSession={activeCallSession}
-        onSessionEnded={() => {
+        onSessionEnded={async () => {
           setIsRoomModalOpen(false);
           if (activeCallSession) {
+            try {
+              await fetch(`/api/mindspace/listener/conversations/${activeCallSession.id}/close`, {
+                method: "PUT",
+              });
+            } catch {
+              // Continue
+            }
             setSessions((prev) =>
               prev.map((s) => (s.id === activeCallSession.id ? { ...s, status: "completed" } : s))
             );

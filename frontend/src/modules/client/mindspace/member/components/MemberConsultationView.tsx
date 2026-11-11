@@ -72,7 +72,7 @@ export function MemberConsultationView() {
   const startInstantCall = async (listener: (typeof ONLINE_LISTENERS)[0]) => {
     let convId = `live-${Date.now()}`;
     try {
-      const res = await fetch("http://localhost:8080/api/v1/peer/book-session", {
+      const res = await fetch("/api/mindspace/member/peer-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

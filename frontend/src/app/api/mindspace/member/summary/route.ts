@@ -1,21 +1,28 @@
 import { NextResponse } from "next/server";
 import { createMindspaceApiClient } from "@/modules/server/mindspace/api-client";
+import { getServerSession } from "@/modules/server/auth/get-session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const session = await getServerSession().catch(() => null);
+  const currentUserName = session?.user?.name || "Member";
+  const currentUserId = session?.user?.id || "usr-demo-member-01";
+
   try {
     const { request } = await createMindspaceApiClient();
-    const data = await request("/api/v1/members/me/summary");
+    const data: any = await request("/api/v1/members/me/summary");
+    if (data && !data.displayName) {
+      data.displayName = currentUserName;
+    }
     return NextResponse.json(data);
   } catch (error: any) {
     // Resilient fallback when FastAPI is offline during local dev
     return NextResponse.json({
-      userId: "usr-demo-member-01",
-      displayName: "Priya Sharma",
+      userId: currentUserId,
+      displayName: currentUserName,
       checkinsThisWeek: 5,
       savedReflections: 2,
-      activeGoals: 2,
       openSupportRequests: 1,
       openConversations: 1,
       queuedNotifications: 0,

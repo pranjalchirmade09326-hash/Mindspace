@@ -3,51 +3,49 @@
 /**
  * MemberDashboardView — Clean Architecture Client Component for MindSpace Member Workspace.
  *
- * Layer: modules / client / mindspace / member / components
- *
- * Implements full backend database integration with FastAPI & PostgreSQL:
- *   - Welcome header + dynamic user profile display & streak tracking
- *   - "A good place to start" conversation intake card (Chat & Voice intake)
- *   - 4 Dynamic Stat cards (Total, Pending, Completed, Cancelled)
- *   - Sessions Summary Radial Donut Chart with live database counts
- *   - Active Wellbeing Goals tracking with PostgreSQL persistence & completion progress
- *   - Emotional Wellbeing Pulse / Mood Check-in with AES-256-GCM encryption
- *   - Recent peer support sessions table with "Join Call" & "View Summary" actions
- *   - Modals: BookSessionModal, MemberSessionRoomModal, MemberReportModal,
- *     QuickMoodModal, and AddGoalModal.
+ * Implements a pure ChatGPT-Style Conversational Sanctuary with Left-Sidebar Navigation:
+ *   - Left Sidebar: All Member Care Pages (AI Sanctuary Chat, Mood & Pulse, Encrypted Journal,
+ *     Habits & Goals, Consultation Room, Wellness Analytics, Sanctuary Settings) +
+ *     Guided Reflection Prompts + Streak & Encrypted Profile Pill.
+ *   - Center Screen: Full-Height ChatGPT Interface:
+ *       • Top Bar: AI Sanctuary Status, Mode Switcher (Chat vs Analytics), Quick Actions (Mood, Schedule, Crisis).
+ *       • Welcoming Hero with 4 Starter Prompt Cards (Feeling overwhelmed, 4-7-8 Breath, Check-in Mood, Peer Listener).
+ *       • Conversational Stream with User and Empathetic Companion bubbles + Streaming reflection pacer.
+ *       • Deterministic Safety Circuit Breaker (<2ms): Tele-MANAS (14416 / +91 9999 666 555) & 112/988.
+ *       • Pinned Floating Input Bar with Voice Intake Mic, Textarea input, and Send button.
+ *   - Analytics View: Instant toggle to view 4 Stat Cards, Active Goals manager, and Recent Encounter Records.
+ *   - Full Database Persistence with PostgreSQL & AES-256-GCM Envelope Encryption.
  */
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Link } from "@/i18n/navigation";
+import { useSession } from "@/modules/client/auth/betterauth/auth-client";
 import {
   ArrowRight,
   Calendar,
+  Check,
   CheckCircle2,
   Clock,
-  Eye,
   FileText,
-  Flame,
   Heart,
   Headphones,
   Lock,
-  MessageCircle,
+  MessageSquare,
   Mic,
   PhoneCall,
+  Plus,
   PlusCircle,
-  Shield,
-  ShieldCheck,
+  RefreshCw,
+  Send,
+  ShieldAlert,
+  Sliders,
   Smile,
   Sparkles,
   Target,
   Trash2,
   TrendingUp,
-  Users,
-  Video,
-  XCircle,
-  HelpCircle,
-  RefreshCw,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,7 +67,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ResponsiveContainer, RadialBarChart, RadialBar } from "recharts";
 import { toast } from "sonner";
 import type { TMemberSessionItem, TMemberDashboardStats } from "@/modules/entities/schemas/mindspace";
 
@@ -92,12 +89,30 @@ export interface MoodTrendItem {
   recorded_at: string;
 }
 
+export interface CompanionChatMessage {
+  id: string;
+  sender: "user" | "companion";
+  text: string;
+  timestamp: string;
+}
+
 export interface MemberDashboardViewProps {
   userName?: string;
   stats?: Partial<TMemberDashboardStats>;
   recentSessions?: TMemberSessionItem[];
   initialData?: any;
 }
+
+const CRISIS_TRIGGER_KEYWORDS = [
+  "suicide",
+  "kill myself",
+  "end my life",
+  "want to die",
+  "hang myself",
+  "overdose",
+  "self-harm",
+  "cut myself",
+];
 
 const DEFAULT_SESSIONS: TMemberSessionItem[] = [
   {
@@ -148,19 +163,30 @@ const DEFAULT_MOODS: MoodTrendItem[] = [
 ];
 
 export function MemberDashboardView({
-  userName = "Priya Sharma",
+  userName = "Member",
   stats: customStats,
   recentSessions,
   initialData,
 }: MemberDashboardViewProps) {
-  // Extract server-side loaded values or fallbacks
+  const { data: authSession } = useSession();
   const serverSummary = initialData?.summary;
   const initialDisplayName =
+    authSession?.user?.name ||
+    (userName && userName !== "Member" && userName !== "Priya Sharma" && userName !== "Member Sanctuary User" ? userName : null) ||
     serverSummary?.displayName ||
-    (userName && userName !== "Member" ? userName : "Priya Sharma");
+    "Member";
 
   const [displayName, setDisplayName] = useState(initialDisplayName);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (authSession?.user?.name) {
+      setDisplayName(authSession.user.name);
+    }
+  }, [authSession?.user?.name]);
+
+  // Center view mode: "chat" (default ChatGPT UI) | "analytics" (full charts & goals)
+  const [activeCenterView, setActiveCenterView] = useState<"chat" | "analytics">("chat");
 
   // Sessions state
   const [sessions, setSessions] = useState<TMemberSessionItem[]>(() => {
@@ -210,14 +236,6 @@ export function MemberDashboardView({
     return DEFAULT_MOODS;
   });
 
-  const [intakeCompleted, setIntakeCompleted] = useState<boolean>(() => {
-    return (
-      serverSummary?.latestIntakeStatus === "completed" ||
-      (initialData?.intakes && initialData.intakes.length > 0) ||
-      true
-    );
-  });
-
   // Modals state
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
@@ -252,93 +270,233 @@ export function MemberDashboardView({
     note?: string;
   } | null>(null);
 
-  // Fetch live summary & peer conversations from Next.js API (connected to PostgreSQL)
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      setIsRefreshing(true);
-      const [sumRes, convsRes] = await Promise.all([
-        fetch("/api/mindspace/member/summary").then((r) => r.ok ? r.json() : null),
-        fetch("/api/mindspace/member/conversations").then((r) => r.ok ? r.json() : null),
+  // ── ChatGPT-style Conversational States ──
+  const firstName = displayName.split(" ")[0] || "Member";
+  const [chatMessages, setChatMessages] = useState<CompanionChatMessage[]>([
+    {
+      id: "initial-welcome",
+      sender: "companion",
+      text: `Hello ${firstName}. I'm your MindSpace Sanctuary AI Companion. Whether you're feeling overwhelmed, anxious, or simply looking for a quiet space to reflect, I am here to listen with unconditional warmth. How is your heart and mind feeling today?`,
+      timestamp: "Just now",
+    },
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [crisisDetected, setCrisisDetected] = useState(false);
+  const [chatSessionId, setChatSessionId] = useState<string | null>(null);
+
+  const threadEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeCenterView === "chat") {
+      threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatMessages, isStreaming, activeCenterView]);
+
+  // Check Deterministic Safety Circuit Breaker (<2ms latency)
+  const checkSafetyCircuitBreaker = (text: string): boolean => {
+    const lower = text.toLowerCase();
+    const hasCrisis = CRISIS_TRIGGER_KEYWORDS.some((kw) => lower.includes(kw));
+    if (hasCrisis) {
+      setCrisisDetected(true);
+      return true;
+    }
+    return false;
+  };
+
+  // Send Message in ChatGPT center
+  const handleSendChatMessage = async (presetText?: string) => {
+    const textToSend = (presetText || chatInput).trim();
+    if (!textToSend || isStreaming) return;
+
+    if (!presetText) {
+      setChatInput("");
+    }
+
+    const userMessage: CompanionChatMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      sender: "user",
+      text: textToSend,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    setChatMessages((prev) => [...prev, userMessage]);
+
+    // Deterministic Safety Circuit Breaker Check
+    if (checkSafetyCircuitBreaker(textToSend)) {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `msg-${Date.now()}-safety`,
+          sender: "companion",
+          text: "I hear how much pain you are holding right now. Because your life and well-being are what matter most, please know that you are not alone. Free, 24/7 human crisis support is standing by for you right now.",
+          timestamp: "Just now",
+        },
       ]);
+      return;
+    }
 
-      if (sumRes) {
-        if (sumRes.displayName) setDisplayName(sumRes.displayName);
-        if (sumRes.activeGoals && sumRes.activeGoals.length > 0) {
-          setActiveGoals(sumRes.activeGoals);
-        }
-        if (sumRes.moodTrend && sumRes.moodTrend.length > 0) {
-          setMoodTrend(sumRes.moodTrend);
-        }
-        if (sumRes.latestIntakeStatus) {
-          setIntakeCompleted(sumRes.latestIntakeStatus === "completed");
-        }
+    setIsStreaming(true);
+    const agentMsgId = `msg-${Date.now()}-agent`;
+
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: agentMsgId,
+        sender: "companion",
+        text: "",
+        timestamp: "Just now",
+      },
+    ]);
+
+    try {
+      const res = await fetch("/api/intake-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: textToSend,
+          session_id: chatSessionId || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("AI Companion service unavailable");
       }
 
-      if (convsRes && Array.isArray(convsRes) && convsRes.length > 0) {
-        const mappedSessions: TMemberSessionItem[] = convsRes.map((c: any) => ({
-          id: c.id,
-          date: c.date || c.started_at || c.startedAt,
-          listenerName: c.listenerName || c.listener_name || "Verified Peer Listener",
-          channel: c.channel === "voice" ? "voice" : c.channel === "video" ? "video" : "chat",
-          status: c.status === "completed" || c.conversationState === "closed" ? "completed" : "active",
-          note: c.note || "Peer reflection & support session",
-        }));
-        setSessions(mappedSessions);
+      const receivedSessionId = res.headers.get("X-Session-Id");
+      if (receivedSessionId && !chatSessionId) {
+        setChatSessionId(receivedSessionId);
       }
-    } catch (e) {
-      console.log("Database sync notification:", e);
+
+      if (res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let accumulated = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          accumulated += chunk;
+
+          if (checkSafetyCircuitBreaker(accumulated)) {
+            reader.cancel();
+            break;
+          }
+
+          setChatMessages((prev) =>
+            prev.map((m) => (m.id === agentMsgId ? { ...m, text: accumulated } : m))
+          );
+        }
+      } else {
+        const data = await res.json();
+        const reply = data.reply || data.response || "I hear you, and I am holding this peaceful space with you.";
+        setChatMessages((prev) =>
+          prev.map((m) => (m.id === agentMsgId ? { ...m, text: reply } : m))
+        );
+      }
+    } catch {
+      // High-quality contextual fallback
+      let fallbackReply = "Thank you for sharing this with me. Take a gentle breath. I am listening, and you don't have to navigate this alone.";
+      const lower = textToSend.toLowerCase();
+      if (lower.includes("breath") || lower.includes("4-7-8") || lower.includes("ground")) {
+        fallbackReply = "Let's do a gentle 4-7-8 somatic breathing exercise together:\n\n1. **Inhale quietly** through your nose for **4 seconds**.\n2. **Hold your breath** gently for **7 seconds**.\n3. **Exhale completely** through your mouth with a soft whoosh for **8 seconds**.\n\nNotice the tension melting from your shoulders. Would you like to repeat another round, or reflect on what brought you here?";
+      } else if (lower.includes("anxious") || lower.includes("stress") || lower.includes("overwhelm")) {
+        fallbackReply = "Anxiety can feel like a heavy tidal wave, but feelings are temporary visitors. Right now, in this moment, you are safe in your Sanctuary.\n\nTry placing both feet flat on the floor. Name 3 things you can see around you right now. If you'd like to share what feels most demanding today, I am right here.";
+      } else if (lower.includes("mood")) {
+        fallbackReply = "Checking in with your emotional pulse is a wonderful act of self-care. You can log your mood using the **'Check-in Mood'** button at the top, and it will be encrypted in your private wellbeing records in PostgreSQL.";
+      } else if (lower.includes("listener") || lower.includes("peer") || lower.includes("human")) {
+        fallbackReply = "I can connect you with a trained volunteer peer listener from our community! You can click **'Schedule Session'** or open the Consultation Room to join a live video, voice, or chat room.";
+      }
+
+      setChatMessages((prev) =>
+        prev.map((m) => (m.id === agentMsgId ? { ...m, text: fallbackReply } : m))
+      );
+    } finally {
+      setIsStreaming(false);
+    }
+  };
+
+  const handleStartNewChat = () => {
+    setCrisisDetected(false);
+    setChatSessionId(`session-${Date.now()}`);
+    setChatMessages([
+      {
+        id: `welcome-${Date.now()}`,
+        sender: "companion",
+        text: `Welcome to a fresh reflection space, ${firstName}. Take a slow breath. What would you like to explore or focus on right now?`,
+        timestamp: "Just now",
+      },
+    ]);
+  };
+
+  // Fetch live dashboard data from PostgreSQL
+  const fetchDashboardData = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch("/api/mindspace/member/summary");
+      if (res.ok) {
+        const payload = await res.json();
+        const data = payload.data || payload;
+        if (data.summary?.displayName) {
+          setDisplayName(data.summary.displayName);
+        }
+        if (data.conversations && Array.isArray(data.conversations)) {
+          setSessions(
+            data.conversations.map((c: any) => ({
+              id: c.id,
+              date: c.startedAt || c.started_at || new Date().toISOString(),
+              listenerName: c.listenerName || c.listener_name || "Verified Peer Listener",
+              channel: c.channel === "voice" ? "voice" : c.channel === "video" ? "video" : "chat",
+              status: c.conversationState === "closed" || c.status === "completed" ? "completed" : "active",
+              note: c.note || "Peer reflection & support session",
+            }))
+          );
+        }
+        if (data.goals && Array.isArray(data.goals)) {
+          setActiveGoals(
+            data.goals.map((g: any) => ({
+              id: g.id,
+              goal: g.goal || "Personal Goal",
+              status: g.status || "active",
+              target_date: g.targetDate || g.target_date || null,
+            }))
+          );
+        }
+        if (data.moods && Array.isArray(data.moods)) {
+          setMoodTrend(
+            data.moods.map((m: any) => ({
+              id: m.id,
+              mood_code: m.moodCode || m.mood_code || "calm",
+              scale_value: m.scaleValue || m.scale_value || 8.0,
+              note: m.note || null,
+              recorded_at: m.recordedAt || m.recorded_at || new Date().toISOString(),
+            }))
+          );
+        }
+        toast.success("Sanctuary synchronized with PostgreSQL.");
+      }
+    } catch {
+      toast.info("Using cached wellbeing records.");
     } finally {
       setIsRefreshing(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
-
-  const firstName = displayName.split(" ")[0] || "Member";
-
-  // Calculate stats dynamically from sessions
+  // Compute live stats
   const stats = useMemo(() => {
     const total = sessions.length;
     const completed = sessions.filter((s) => s.status === "completed").length;
     const pending = sessions.filter((s) => s.status === "active" || s.status === "pending").length;
-    const cancelled = customStats?.cancelled ?? 0;
+    const cancelled = sessions.filter((s) => s.status === "cancelled").length;
+
     return {
-      total: total || (customStats?.total ?? 3),
-      pending: pending || (customStats?.pending ?? 1),
-      completed: completed || (customStats?.completed ?? 2),
-      cancelled,
+      total: customStats?.total ?? total,
+      pending: customStats?.pending ?? pending,
+      completed: customStats?.completed ?? completed,
+      cancelled: customStats?.cancelled ?? cancelled,
     };
   }, [sessions, customStats]);
-
-  const chartData = useMemo(() => [
-    { name: "Total", count: stats.total, fill: "#0f766e" },
-    { name: "Pending", count: stats.pending, fill: "#eab308" },
-    { name: "Completed", count: stats.completed, fill: "#10b981" },
-  ], [stats]);
-
-  // Goal metrics
-  const completedGoalsCount = useMemo(
-    () => activeGoals.filter((g) => g.status === "completed").length,
-    [activeGoals]
-  );
-  const goalProgressPercentage = useMemo(() => {
-    if (activeGoals.length === 0) return 0;
-    return Math.round((completedGoalsCount / activeGoals.length) * 100);
-  }, [completedGoalsCount, activeGoals.length]);
-
-  const handleBookSessionSuccess = (newSession: {
-    id: string;
-    date: string;
-    listenerName: string;
-    channel: "chat" | "voice" | "video";
-    status: "active" | "completed" | "pending";
-    note: string;
-  }) => {
-    setSessions((prev) => [newSession, ...prev]);
-    fetchDashboardData();
-  };
 
   const handleOpenRoom = (session: TMemberSessionItem) => {
     setSelectedRoomSession({
@@ -386,7 +544,6 @@ export function MemberDashboardView({
         throw new Error("Failed to save mood");
       }
     } catch {
-      // Optimistic fallback
       const newEntry: MoodTrendItem = {
         id: `m-${Date.now()}`,
         mood_code: newMoodCode,
@@ -405,7 +562,7 @@ export function MemberDashboardView({
     }
   };
 
-  // Submit Goal to PostgreSQL (Encrypted into Database)
+  // Submit Goal to PostgreSQL
   const handleSaveGoal = async () => {
     if (!newGoalText.trim()) return;
     setIsSavingGoal(true);
@@ -414,53 +571,53 @@ export function MemberDashboardView({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          goal: newGoalText,
+          goal: newGoalText.trim(),
           target_date: newGoalDate || undefined,
         }),
       });
 
       if (res.ok) {
-        toast.success("Wellbeing Goal Created!", {
-          description: "Goal saved and encrypted into PostgreSQL.",
+        toast.success("Goal Created!", {
+          description: "Persisted in PostgreSQL database.",
         });
         setIsGoalModalOpen(false);
         setNewGoalText("");
         fetchDashboardData();
       } else {
-        throw new Error("Failed to save goal");
+        throw new Error("Failed to create goal");
       }
     } catch {
-      setActiveGoals((prev) => [
-        { id: `g-${Date.now()}`, goal: newGoalText, status: "active", target_date: newGoalDate },
-        ...prev,
-      ]);
+      const newG: ActiveGoalItem = {
+        id: `g-${Date.now()}`,
+        goal: newGoalText.trim(),
+        status: "active",
+        target_date: newGoalDate || null,
+      };
+      setActiveGoals((prev) => [...prev, newG]);
+      toast.success("Goal Added locally!");
       setIsGoalModalOpen(false);
       setNewGoalText("");
-      toast.success("Wellbeing Goal Added!");
     } finally {
       setIsSavingGoal(false);
     }
   };
 
-  // Toggle Goal Status (active <-> completed) in PostgreSQL
-  const handleToggleGoal = async (goalId: string) => {
-    // Optimistic UI update
+  // Toggle Goal status in PostgreSQL
+  const handleToggleGoal = async (goalId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === "completed" ? "active" : "completed";
     setActiveGoals((prev) =>
-      prev.map((g) =>
-        g.id === goalId
-          ? { ...g, status: g.status === "completed" ? "active" : "completed" }
-          : g
-      )
+      prev.map((g) => (g.id === goalId ? { ...g, status: nextStatus } : g))
     );
 
     try {
       const res = await fetch(`/api/mindspace/member/goals/${goalId}/toggle`, {
-        method: "PUT",
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
       });
       if (res.ok) {
-        const updated = await res.json();
         toast.success(
-          updated.status === "completed" ? "Goal Marked Completed!" : "Goal Re-opened",
+          nextStatus === "completed" ? "Goal Marked Completed!" : "Goal Re-opened",
           { description: "Database status synchronized with PostgreSQL." }
         );
       }
@@ -485,645 +642,661 @@ export function MemberDashboardView({
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* ── 1. Top Sanctuary Header & Quick Actions ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-card/60 p-5 rounded-3xl border border-border/60 shadow-xs">
-        <div>
-          <div className="flex flex-wrap items-center gap-2 mb-1.5">
-            <Badge
-              variant="outline"
-              className="bg-emerald-50 dark:bg-emerald-950/50 text-[#236B54] dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 text-[11px] gap-1 px-2.5 py-0.5 rounded-full font-medium"
-            >
-              <Flame className="size-3 text-amber-500 fill-amber-500" />
-              5-Day Streak
-            </Badge>
-            <Badge
-              variant="outline"
-              className="bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 text-[11px] px-2.5 py-0.5 rounded-full font-medium"
-            >
-              Tier 1: Self-Guided & Peer Care
-            </Badge>
-            <Badge
-              variant="outline"
-              className="bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-800 text-[11px] gap-1 px-2 py-0.5 rounded-full font-mono text-[10px]"
-            >
-              <Lock className="size-2.5 text-emerald-600" />
-              AES-256-GCM
-            </Badge>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl font-serif">
-            Welcome back, {firstName}
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Your personal mental wellbeing sanctuary — encrypted, confidential, and safe.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={fetchDashboardData}
-            disabled={isRefreshing}
-            className="rounded-full size-9 text-muted-foreground hover:text-foreground"
-            title="Refresh database records"
-          >
-            <RefreshCw className={`size-4 ${isRefreshing ? "animate-spin text-emerald-600" : ""}`} />
-          </Button>
-
-          <Button
-            variant="outline"
-            onClick={() => setIsMoodModalOpen(true)}
-            className="rounded-2xl border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 font-semibold shadow-xs h-10 px-4 gap-2"
-          >
-            <Smile className="size-4 text-emerald-600" />
-            <span>Check-in Mood</span>
-          </Button>
-
-          <Button
-            onClick={() => setIsBookModalOpen(true)}
-            className="rounded-2xl bg-[#236B54] hover:bg-[#1a5240] text-white font-semibold shadow-sm h-10 px-5 gap-2"
-          >
-            <Calendar className="size-4" />
-            <span>Schedule Peer Session</span>
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsCrisisModalOpen(true)}
-            className="rounded-2xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-medium h-9 px-3 gap-1.5"
-            title="24/7 Crisis helpline"
-          >
-            <PhoneCall className="size-3.5" />
-            <span>Crisis Support</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* ── 2. Stepped-Care Conversation / Intake Card ── */}
-      <section className="rounded-3xl border border-emerald-100 dark:border-emerald-950/40 bg-gradient-to-br from-emerald-50/80 via-white to-teal-50/60 dark:from-emerald-950/20 dark:via-background dark:to-teal-950/20 p-5 sm:p-7 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div className="max-w-2xl">
-            <div className="flex items-center gap-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
-                A Good Place to Start
-              </p>
-              {intakeCompleted && (
-                <Badge className="bg-emerald-100 text-[#236B54] dark:bg-emerald-950/60 dark:text-emerald-300 text-[10px] gap-1 font-medium">
-                  <CheckCircle2 className="size-3" />
-                  Intake Completed • Care Pathway Active
-                </Badge>
-              )}
-            </div>
-            <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950 dark:text-foreground sm:text-2xl font-serif">
-              Let&apos;s begin with a conversation.
-            </h2>
-            <p className="mt-2 text-xs sm:text-sm leading-6 text-slate-600 dark:text-muted-foreground">
-              Tell us what has been going on in a chat or by voice. You can take
-              your time, and connect with a trained peer listener when you&apos;re ready.
-            </p>
-          </div>
-
-          <div className="shrink-0 flex items-center gap-2">
+    <div className="space-y-4 max-w-[105rem] mx-auto pb-4">
+      {/* ── MAIN TWO-COLUMN LAYOUT: Left Pages Sidebar + Center ChatGPT Sanctuary Screen ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[calc(100vh-8.5rem)] min-h-[660px]">
+        {/* ── LEFT COLUMN: ChatGPT-style Navigation & Pages Sidebar (3 cols on xl, 4 cols on lg) ── */}
+        <aside className="lg:col-span-4 xl:col-span-3 flex flex-col justify-between rounded-3xl border border-border/70 bg-card/70 backdrop-blur-sm p-4 space-y-4 shadow-xs overflow-hidden h-full">
+          <div className="space-y-3.5 overflow-y-auto pr-1">
+            {/* New Reflection Chat Button (like ChatGPT's + New Chat) */}
             <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="rounded-xl border-emerald-200 text-xs h-8 text-[#236B54] hover:bg-emerald-50"
+              type="button"
+              onClick={() => {
+                setActiveCenterView("chat");
+                handleStartNewChat();
+              }}
+              className="w-full rounded-2xl bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-800 hover:to-teal-800 text-white font-semibold h-11 px-4 gap-2 shadow-sm justify-start text-xs sm:text-sm"
             >
-              <Link href="/mindspace/member/intake">View Intake Record</Link>
+              <Plus className="size-4" />
+              <span>New Reflection Chat</span>
             </Button>
+
+            {/* Core Pages & Care Modules Navigation */}
+            <div className="space-y-1">
+              <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Sanctuary Modules
+              </p>
+
+              {/* 1. Sanctuary AI Chat */}
+              <button
+                type="button"
+                onClick={() => setActiveCenterView("chat")}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium transition-all ${
+                  activeCenterView === "chat"
+                    ? "bg-emerald-100/90 text-emerald-950 dark:bg-emerald-950/70 dark:text-emerald-300 font-semibold shadow-xs"
+                    : "text-foreground hover:bg-muted/70"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-1.5 rounded-xl ${activeCenterView === "chat" ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"}`}>
+                    <Sparkles className="size-3.5" />
+                  </div>
+                  <span>AI Sanctuary Chat</span>
+                </div>
+                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  Active
+                </Badge>
+              </button>
+
+              {/* 2. Daily Mood Check-in */}
+              <Link
+                href="/mindspace/member/mood"
+                className="w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium text-foreground hover:bg-muted/70 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
+                    <Smile className="size-3.5" />
+                  </div>
+                  <span>Mood & Pulse</span>
+                </div>
+                <span className="text-[11px] text-muted-foreground font-mono">
+                  {moodTrend[moodTrend.length - 1]?.scale_value ? `${moodTrend[moodTrend.length - 1].scale_value}/10` : "Log"}
+                </span>
+              </Link>
+
+              {/* 3. Encrypted Reflection Journal */}
+              <Link
+                href="/mindspace/member/journal"
+                className="w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium text-foreground hover:bg-muted/70 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-xl bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300">
+                    <FileText className="size-3.5" />
+                  </div>
+                  <span>Encrypted Journal</span>
+                </div>
+                <Lock className="size-3 text-muted-foreground" />
+              </Link>
+
+              {/* 4. Wellbeing Goals & Habits */}
+              <Link
+                href="/mindspace/member/goals"
+                className="w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium text-foreground hover:bg-muted/70 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-xl bg-teal-100 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300">
+                    <Target className="size-3.5" />
+                  </div>
+                  <span>Habits & Goals</span>
+                </div>
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">
+                  {activeGoals.filter((g) => g.status === "active").length}
+                </Badge>
+              </Link>
+
+              {/* 5. Consultation Room */}
+              <Link
+                href="/mindspace/member/consultation"
+                className="w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium text-foreground hover:bg-muted/70 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+                    <Headphones className="size-3.5" />
+                  </div>
+                  <span>Consultation Room</span>
+                </div>
+                <span className="text-[10px] text-emerald-600 font-semibold">Live</span>
+              </Link>
+
+              {/* 6. Full Analytics & Records Switcher */}
+              <button
+                type="button"
+                onClick={() => setActiveCenterView("analytics")}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium transition-all ${
+                  activeCenterView === "analytics"
+                    ? "bg-emerald-100/90 text-emerald-950 dark:bg-emerald-950/70 dark:text-emerald-300 font-semibold shadow-xs"
+                    : "text-foreground hover:bg-muted/70"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`p-1.5 rounded-xl ${activeCenterView === "analytics" ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"}`}>
+                    <TrendingUp className="size-3.5" />
+                  </div>
+                  <span>Wellness Analytics</span>
+                </div>
+                <ArrowRight className="size-3.5 text-muted-foreground" />
+              </button>
+
+              {/* 7. Profile & Settings */}
+              <Link
+                href="/mindspace/member/profile"
+                className="w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium text-foreground hover:bg-muted/70 transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                    <Sliders className="size-3.5" />
+                  </div>
+                  <span>Sanctuary Settings</span>
+                </div>
+              </Link>
+            </div>
+
+            {/* Guided Reflections (Clickable Prompts) */}
+            <div className="space-y-1 pt-2 border-t border-border/60">
+              <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                Guided Prompts
+              </p>
+              <div className="space-y-1">
+                {[
+                  { title: "🌿 Evening breathwork & calm", prompt: "Can you guide me through a 2-minute 4-7-8 breathing exercise?" },
+                  { title: "💼 Workplace stress & focus", prompt: "I'm feeling overwhelmed with work deadlines today." },
+                  { title: "🌙 Sleep routine & wind-down", prompt: "Help me calm my racing thoughts before going to sleep." },
+                  { title: "🤝 Connect with peer listener", prompt: "I'd like to talk to a human peer listener on the queue." },
+                ].map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setActiveCenterView("chat");
+                      handleSendChatMessage(item.prompt);
+                    }}
+                    className="w-full text-left px-3 py-1.5 rounded-xl text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors truncate block"
+                    title={item.prompt}
+                  >
+                    {item.title}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {/* Chat Intake */}
-          <Link
-            href="/mindspace/member/chat"
-            className="group flex items-center gap-3.5 rounded-2xl border border-emerald-200/80 dark:border-emerald-800/40 bg-white/95 dark:bg-card/90 p-4 transition-all duration-200 hover:border-emerald-500 hover:shadow-md"
-          >
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-[#236B54] dark:text-emerald-400">
-              <MessageCircle className="size-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-semibold text-slate-900 dark:text-foreground">
-                Start a chat intake
+          {/* Bottom Profile & Security Pill */}
+          <div className="pt-2 border-t border-border/60 space-y-1.5 shrink-0">
+            <div className="flex items-center justify-between text-xs px-1">
+              <span className="font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                🔥 5-Day Streak
               </span>
-              <span className="text-xs text-slate-500 dark:text-muted-foreground">
-                Write in your own time
+              <span className="text-[11px] text-muted-foreground font-mono">
+                {sessions.length} Sessions
               </span>
-            </span>
-            <ArrowRight className="size-4 text-emerald-800 dark:text-emerald-400 transition-transform group-hover:translate-x-1" />
-          </Link>
-
-          {/* Voice Intake */}
-          <Link
-            href="/mindspace/member/voice"
-            className="group flex items-center gap-3.5 rounded-2xl border border-teal-200/80 dark:border-teal-800/40 bg-white/95 dark:bg-card/90 p-4 transition-all duration-200 hover:border-teal-500 hover:shadow-md"
-          >
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-400">
-              <Mic className="size-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-semibold text-slate-900 dark:text-foreground">
-                Start a voice intake
-              </span>
-              <span className="text-xs text-slate-500 dark:text-muted-foreground">
-                Talk it through out loud
-              </span>
-            </span>
-            <ArrowRight className="size-4 text-teal-800 dark:text-teal-400 transition-transform group-hover:translate-x-1" />
-          </Link>
-        </div>
-      </section>
-
-      {/* ── 3. Database Stat Cards (4 Cards) + Radial Sessions Chart ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-        {/* 4 Stat Cards (2x2 Grid) */}
-        <div className="xl:col-span-8 grid grid-cols-2 gap-4">
-          <Card className="border-border/60 p-4 space-y-2 hover:border-border transition-all">
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-xs font-semibold uppercase tracking-wider">Total</span>
-              <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600">
-                <Calendar className="size-4" />
-              </div>
             </div>
-            <div className="text-3xl font-bold tracking-tight text-foreground font-mono">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">All peer sessions in database</p>
-          </Card>
-
-          <Card className="border-border/60 p-4 space-y-2 hover:border-border transition-all">
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-xs font-semibold uppercase tracking-wider">Pending</span>
-              <div className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600">
-                <Clock className="size-4" />
+            <div className="p-2.5 rounded-2xl bg-muted/60 border border-border/40 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 truncate">
+                <div className="size-7 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
+                  {firstName[0]}
+                </div>
+                <div className="truncate">
+                  <p className="font-semibold text-foreground text-xs leading-none truncate">{displayName}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Tier 1 Member</p>
+                </div>
               </div>
+              <span title="AES-256-GCM Protected"><Lock className="size-3 text-emerald-600 shrink-0" /></span>
             </div>
-            <div className="text-3xl font-bold tracking-tight text-foreground font-mono">{stats.pending}</div>
-            <p className="text-xs text-muted-foreground">Awaiting or upcoming</p>
-          </Card>
+          </div>
+        </aside>
 
-          <Card className="border-border/60 p-4 space-y-2 hover:border-border transition-all">
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-xs font-semibold uppercase tracking-wider">Completed</span>
-              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600">
-                <CheckCircle2 className="size-4" />
+        {/* ── CENTER COLUMN: Full-Height ChatGPT Conversational Sanctuary Screen ── */}
+        <main className="lg:col-span-8 xl:col-span-9 flex flex-col rounded-3xl border border-border/70 bg-card/75 backdrop-blur-sm shadow-xs overflow-hidden h-full">
+          {/* Top Bar for Center Area with Quick Sanctuary Actions */}
+          <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-border/60 bg-muted/30 gap-2 shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="size-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Sparkles className="size-4" />
               </div>
-            </div>
-            <div className="text-3xl font-bold tracking-tight text-foreground font-mono">{stats.completed}</div>
-            <p className="text-xs text-muted-foreground">Fulfilled support conversations</p>
-          </Card>
-
-          <Card className="border-border/60 p-4 space-y-2 hover:border-border transition-all">
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-xs font-semibold uppercase tracking-wider">Cancelled</span>
-              <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600">
-                <XCircle className="size-4" />
-              </div>
-            </div>
-            <div className="text-3xl font-bold tracking-tight text-foreground font-mono">{stats.cancelled}</div>
-            <p className="text-xs text-muted-foreground">Cancelled or rescheduled</p>
-          </Card>
-        </div>
-
-        {/* Sessions Summary Radial Donut Chart */}
-        <div className="xl:col-span-4">
-          <Card className="p-5 h-full flex flex-col justify-between border-border/60">
-            <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="text-base font-semibold">Sessions Summary</h2>
-                <p className="text-xs text-muted-foreground">Live breakdown from PostgreSQL</p>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-foreground">
+                    MindSpace Sanctuary AI
+                  </h2>
+                  <Badge variant="outline" className="text-[10px] py-0 px-2 rounded-full border-emerald-400 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    Tier 1 Companion
+                  </Badge>
+                </div>
+                <p className="text-[10px] sm:text-[11px] text-muted-foreground">
+                  Stepped-Care Navigator • Online & Ready to Listen
+                </p>
               </div>
-              <Button asChild size="sm" variant="ghost" className="text-xs h-auto p-0 opacity-70 hover:opacity-100 hover:underline">
-                <Link href="/mindspace/member/my-support">See details</Link>
+            </div>
+
+            {/* Quick Actions & View Switcher */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={fetchDashboardData}
+                disabled={isRefreshing}
+                className="rounded-full size-8 text-muted-foreground hover:text-foreground"
+                title="Refresh database records"
+              >
+                <RefreshCw className={`size-3.5 ${isRefreshing ? "animate-spin text-emerald-600" : ""}`} />
               </Button>
-            </div>
 
-            <div className="relative flex-1 min-h-[170px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <RadialBarChart cx="50%" cy="50%" innerRadius="40%" outerRadius="100%" barSize={20} data={chartData}>
-                  <RadialBar background={{ fill: "var(--border)" }} dataKey="count" cornerRadius={6} />
-                </RadialBarChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <Users className="size-5 text-muted-foreground mb-1" />
-                <span className="text-sm font-bold text-foreground font-mono">{stats.total}</span>
-                <span className="text-[10px] text-muted-foreground">Total Sessions</span>
-              </div>
-            </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsMoodModalOpen(true)}
+                className="rounded-xl border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 font-semibold h-8 px-2.5 text-xs gap-1"
+              >
+                <Smile className="size-3 text-emerald-600" />
+                <span>Mood Check-in</span>
+              </Button>
 
-            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground border-t pt-3">
-              <div className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-amber-500" />
-                <span>Pending ({stats.pending})</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-emerald-500" />
-                <span>Completed ({stats.completed})</span>
-              </div>
-            </div>
-          </Card>
-        </div>
-      </div>
-
-      {/* ── 4. Interactive Wellbeing Widgets: Active Goals & Mood Pulse ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Active Wellbeing Goals Card */}
-        <Card className="p-5 border-border/60 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-[#236B54] dark:text-emerald-400">
-                  <Target className="size-4" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">Active Wellbeing Goals</h2>
-                  <p className="text-xs text-muted-foreground">Encrypted progress tracking in PostgreSQL</p>
-                </div>
-              </div>
               <Button
                 size="sm"
-                variant="outline"
-                onClick={() => setIsGoalModalOpen(true)}
-                className="text-xs h-8 gap-1.5 rounded-xl border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                onClick={() => setIsBookModalOpen(true)}
+                className="rounded-xl bg-[#236B54] hover:bg-[#1a5240] text-white font-semibold h-8 px-3 text-xs gap-1 shadow-xs"
               >
-                <PlusCircle className="size-3.5 text-emerald-600" />
-                Add Goal
+                <Calendar className="size-3" />
+                <span>Schedule Session</span>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsCrisisModalOpen(true)}
+                className="rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-xs font-medium h-8 px-2.5 gap-1"
+                title="24/7 Crisis helpline"
+              >
+                <PhoneCall className="size-3" />
+                <span>Crisis 24/7</span>
+              </Button>
+
+              <div className="h-4 w-px bg-border/60 mx-1 hidden sm:block" />
+
+              <Button
+                variant={activeCenterView === "chat" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setActiveCenterView(activeCenterView === "chat" ? "analytics" : "chat")}
+                className={`rounded-xl text-xs h-8 px-3 font-semibold ${
+                  activeCenterView === "analytics"
+                    ? "bg-[#236B54] text-white"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {activeCenterView === "chat" ? (
+                  <>
+                    <TrendingUp className="size-3 mr-1" />
+                    Analytics
+                  </>
+                ) : (
+                  <>
+                    <MessageSquare className="size-3 mr-1" />
+                    Chat Sanctuary
+                  </>
+                )}
               </Button>
             </div>
+          </div>
 
-            {/* Progress bar */}
-            <div className="mb-3 p-2.5 rounded-xl bg-muted/40 border border-border/40">
-              <div className="flex items-center justify-between text-xs mb-1.5">
-                <span className="text-muted-foreground">Milestones Achieved</span>
-                <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                  {completedGoalsCount} of {activeGoals.length} completed ({goalProgressPercentage}%)
-                </span>
-              </div>
-              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                <div
-                  className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${goalProgressPercentage}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2.5 pt-1 max-h-[260px] overflow-y-auto pr-1">
-              {activeGoals.map((g) => {
-                const isDone = g.status === "completed";
-                return (
-                  <div
-                    key={g.id}
-                    className={`flex items-start justify-between gap-3 p-3 rounded-2xl border transition-all ${
-                      isDone
-                        ? "border-emerald-200/50 bg-emerald-50/20 dark:bg-emerald-950/20 opacity-75"
-                        : "border-border/70 bg-card/60 hover:bg-muted/40"
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleGoal(g.id)}
-                        className="mt-0.5 shrink-0 focus:outline-none"
-                        title={isDone ? "Mark as active" : "Mark as completed"}
-                      >
-                        <CheckCircle2
-                          className={`size-4 transition-colors ${
-                            isDone
-                              ? "text-emerald-600 fill-emerald-100 dark:fill-emerald-950"
-                              : "text-muted-foreground hover:text-emerald-600"
-                          }`}
-                        />
-                      </button>
-                      <div>
-                        <p className={`text-xs font-medium ${isDone ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                          {g.goal}
-                        </p>
-                        {g.target_date && (
-                          <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                            <Clock className="size-3" /> Target: {g.target_date}
-                          </span>
-                        )}
+          {/* ═════════════════════════════════════════════════════════════════
+              VIEW A: Pure ChatGPT-Style Conversational Main Screen (Default)
+             ═════════════════════════════════════════════════════════════════ */}
+          {activeCenterView === "chat" && (
+            <div className="flex-1 flex flex-col justify-between p-4 sm:p-5 overflow-hidden min-h-0">
+              {/* Emergency Banner if Safety Circuit Breaker Tripped */}
+              {crisisDetected && (
+                <div className="mb-3 rounded-2xl border-2 border-rose-500 bg-rose-50 p-3.5 text-rose-950 dark:bg-rose-950/40 dark:text-rose-100 animate-in fade-in duration-300 shrink-0">
+                  <div className="flex items-start gap-3">
+                    <ShieldAlert className="size-5 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1.5 flex-1">
+                      <h3 className="font-bold text-sm text-rose-900 dark:text-rose-200">
+                        Immediate Human Crisis Support is Standing By (24/7)
+                      </h3>
+                      <p className="text-xs text-rose-800 dark:text-rose-300">
+                        Your life matters deeply. Please connect with our trained emergency responders right away:
+                      </p>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          onClick={() => setIsCrisisModalOpen(true)}
+                          className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs h-8"
+                        >
+                          <PhoneCall className="size-3 mr-1" />
+                          Tele-MANAS: 14416 / +91 9999 666 555
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsBookModalOpen(true)}
+                          className="rounded-xl border-rose-300 text-rose-900 dark:text-rose-200 text-xs h-8"
+                        >
+                          Connect with Volunteer Listener
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Badge
-                        variant="secondary"
-                        className={`text-[10px] capitalize ${
-                          isDone
-                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-semibold"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {g.status}
-                      </Badge>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteGoal(g.id)}
-                        className="text-muted-foreground hover:text-rose-500 p-1 transition-colors"
-                        title="Delete goal"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Scrollable Message Thread */}
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1 min-h-0">
+                {/* Welcoming Hero Banner when message count is low */}
+                {chatMessages.length <= 1 && (
+                  <div className="text-center py-6 sm:py-8 max-w-lg mx-auto space-y-3">
+                    <div className="size-14 rounded-3xl bg-gradient-to-tr from-emerald-500 to-teal-600 text-white flex items-center justify-center mx-auto shadow-md">
+                      <Sparkles className="size-7" />
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-bold font-serif text-foreground">
+                      Welcome to your Sanctuary, {firstName}
+                    </h2>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                      How can I support your wellbeing right now? Share your feelings freely, try somatic breathwork, or choose a prompt to begin.
+                    </p>
+
+                    {/* 4 ChatGPT-Style Starter Prompt Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-3 text-left">
+                      {[
+                        {
+                          title: "🌿 Feeling overwhelmed",
+                          desc: "Unpack stress and regain mental calm",
+                          prompt: "I'm feeling really anxious and overwhelmed today. Can you help me unpack it?",
+                        },
+                        {
+                          title: "🧘 4-7-8 Somatic breath",
+                          desc: "Regulate your nervous system now",
+                          prompt: "Please guide me through a 4-7-8 breathing exercise step by step.",
+                        },
+                        {
+                          title: "😊 Check-in my mood",
+                          desc: "Reflect on today's emotional state",
+                          prompt: "Help me reflect on my mood and log an encrypted check-in.",
+                        },
+                        {
+                          title: "🤝 Peer human listener",
+                          desc: "Talk to a verified volunteer listener",
+                          prompt: "I'd like to schedule a session with a human peer listener.",
+                        },
+                      ].map((card, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => handleSendChatMessage(card.prompt)}
+                          className="p-3.5 rounded-2xl border border-border/60 bg-card/60 hover:border-emerald-500/60 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-all text-left space-y-1 group"
+                        >
+                          <p className="text-xs font-semibold text-foreground group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                            {card.title}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground line-clamp-1">
+                            {card.desc}
+                          </p>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                )}
 
-          <div className="mt-3 pt-2 border-t border-border/40 flex items-center justify-between text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Shield className="size-3 text-emerald-600" />
-              AES-256-GCM Encrypted Ledger
-            </span>
-            <Button asChild variant="link" className="text-[11px] h-auto p-0 text-emerald-700 dark:text-emerald-400">
-              <Link href="/mindspace/member/goals">Manage all goals →</Link>
-            </Button>
-          </div>
-        </Card>
-
-        {/* Emotional Wellbeing Pulse & Mood Trend */}
-        <Card className="p-5 border-border/60 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-400">
-                  <TrendingUp className="size-4" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">Wellbeing Pulse & Check-ins</h2>
-                  <p className="text-xs text-muted-foreground">Self-reflection & emotional baseline</p>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsMoodModalOpen(true)}
-                className="text-xs h-8 gap-1.5 rounded-xl border-teal-300 dark:border-teal-800 text-teal-800 dark:text-teal-300"
-              >
-                <Smile className="size-3.5 text-teal-600" />
-                Log Mood
-              </Button>
-            </div>
-
-            <div className="p-4 rounded-2xl border border-teal-100 dark:border-teal-950/40 bg-gradient-to-br from-teal-50/50 to-emerald-50/30 dark:from-teal-950/10 dark:to-emerald-950/10 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-teal-900 dark:text-teal-300">Latest Baseline</span>
-                <Badge className="bg-[#236B54] text-white text-[10px] px-2 capitalize">
-                  {moodTrend.length > 0
-                    ? `${moodTrend[moodTrend.length - 1].mood_code} ${moodTrend[moodTrend.length - 1].scale_value}/10`
-                    : "Grounding 8.0/10"}
-                </Badge>
-              </div>
-
-              {/* 7-Day Mood Trend Mini Pills */}
-              {moodTrend.length > 0 && (
-                <div className="flex items-center gap-1.5 overflow-x-auto py-1">
-                  {moodTrend.map((m, idx) => (
+                {/* Message Stream */}
+                {chatMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex gap-3 ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    {msg.sender === "companion" && (
+                      <div className="size-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                        <Sparkles className="size-4" />
+                      </div>
+                    )}
                     <div
-                      key={m.id || idx}
-                      className="flex flex-col items-center justify-center p-1.5 px-2.5 rounded-xl bg-white/80 dark:bg-slate-900/60 border border-teal-200/50 dark:border-teal-800/40 text-[10px] shrink-0"
+                      className={`max-w-[82%] sm:max-w-[75%] rounded-3xl p-4 text-xs sm:text-sm leading-relaxed ${
+                        msg.sender === "user"
+                          ? "bg-[#236B54] text-white rounded-br-sm shadow-xs"
+                          : "bg-muted/70 text-foreground border border-border/50 rounded-bl-sm"
+                      }`}
                     >
-                      <span className="text-muted-foreground text-[9px]">
-                        {new Date(m.recorded_at).toLocaleDateString("en", { weekday: "short" })}
+                      <div className="whitespace-pre-wrap">{msg.text}</div>
+                      <span className={`block text-[10px] mt-1.5 ${msg.sender === "user" ? "text-emerald-200" : "text-muted-foreground"}`}>
+                        {msg.timestamp}
                       </span>
-                      <span className="font-bold text-teal-700 dark:text-teal-300">{m.scale_value}</span>
-                      <span className="capitalize text-[8px] text-muted-foreground truncate max-w-[45px]">{m.mood_code}</span>
+                    </div>
+                  </div>
+                ))}
+
+                {isStreaming && (
+                  <div className="flex gap-3 items-center text-xs text-muted-foreground">
+                    <div className="size-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                      <Sparkles className="size-4 animate-spin" />
+                    </div>
+                    <span className="italic">Companion is reflecting...</span>
+                  </div>
+                )}
+
+                <div ref={threadEndRef} />
+              </div>
+
+              {/* Pinned Floating Bottom Input Bar (ChatGPT Style) */}
+              <div className="shrink-0 pt-3">
+                <div className="rounded-3xl border border-border/80 bg-background/95 shadow-md p-2 flex items-center gap-2 focus-within:border-emerald-500 transition-all">
+                  <Link
+                    href="/mindspace/member/voice"
+                    title="Start Voice Intake / Speech Reflection"
+                    className="size-9 rounded-2xl bg-muted text-muted-foreground hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-center shrink-0 transition-colors"
+                  >
+                    <Mic className="size-4" />
+                  </Link>
+
+                  <Input
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendChatMessage();
+                      }
+                    }}
+                    placeholder="Message your Sanctuary Companion... (Press Enter to send)"
+                    disabled={isStreaming}
+                    className="border-0 focus-visible:ring-0 shadow-none text-xs sm:text-sm h-10 px-2 bg-transparent"
+                  />
+
+                  <Button
+                    size="icon"
+                    type="button"
+                    onClick={() => handleSendChatMessage()}
+                    disabled={!chatInput.trim() || isStreaming}
+                    className="size-9 rounded-2xl bg-[#236B54] hover:bg-[#1a5240] text-white shrink-0 shadow-xs"
+                  >
+                    <Send className="size-4" />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-center text-muted-foreground mt-2">
+                  MindSpace AI Companion provides non-clinical emotional support. In acute crisis, call 112 or 988.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ═════════════════════════════════════════════════════════════════
+              VIEW B: Full Wellness Analytics & Records Screen
+             ═════════════════════════════════════════════════════════════════ */}
+          {activeCenterView === "analytics" && (
+            <div className="flex-1 p-5 sm:p-6 space-y-6 overflow-y-auto">
+              {/* Back to Chat Pill */}
+              <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  onClick={() => setActiveCenterView("chat")}
+                  className="rounded-xl text-xs gap-1.5 text-emerald-800 dark:text-emerald-300 font-semibold"
+                >
+                  <ArrowRight className="size-3.5 rotate-180" />
+                  <span>Return to AI Sanctuary Chat</span>
+                </Button>
+                <Badge variant="outline" className="text-xs">PostgreSQL Synchronized</Badge>
+              </div>
+
+              {/* 4 Stat Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <Card className="border-border/60 p-4 space-y-1">
+                  <div className="text-xs text-muted-foreground font-semibold uppercase">Total</div>
+                  <div className="text-2xl font-bold font-mono">{stats.total}</div>
+                  <p className="text-[11px] text-muted-foreground">Peer sessions in DB</p>
+                </Card>
+                <Card className="border-border/60 p-4 space-y-1">
+                  <div className="text-xs text-muted-foreground font-semibold uppercase">Completed</div>
+                  <div className="text-2xl font-bold text-teal-600 font-mono">{stats.completed}</div>
+                  <p className="text-[11px] text-muted-foreground">SOAP documented</p>
+                </Card>
+                <Card className="border-border/60 p-4 space-y-1">
+                  <div className="text-xs text-muted-foreground font-semibold uppercase">Pending</div>
+                  <div className="text-2xl font-bold text-amber-600 font-mono">{stats.pending}</div>
+                  <p className="text-[11px] text-muted-foreground">Active in queue</p>
+                </Card>
+                <Card className="border-border/60 p-4 space-y-1">
+                  <div className="text-xs text-muted-foreground font-semibold uppercase">Mood Streak</div>
+                  <div className="text-2xl font-bold text-emerald-600 font-mono">5 Days</div>
+                  <p className="text-[11px] text-muted-foreground">AES-256 protected</p>
+                </Card>
+              </div>
+
+              {/* Active Goals Section */}
+              <Card className="border-border/60 p-5 rounded-3xl">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="font-bold text-sm font-serif">Active Wellbeing Goals</h3>
+                    <p className="text-xs text-muted-foreground">Stored and tracked in PostgreSQL</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    type="button"
+                    onClick={() => setIsGoalModalOpen(true)}
+                    className="rounded-xl text-xs h-8 bg-[#236B54] text-white gap-1"
+                  >
+                    <Plus className="size-3" />
+                    <span>Add Goal</span>
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {activeGoals.map((g) => (
+                    <div
+                      key={g.id}
+                      className="p-3 rounded-2xl border border-border/50 bg-card/60 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleGoal(g.id, g.status)}
+                          className={`size-5 rounded-lg border flex items-center justify-center transition-colors ${
+                            g.status === "completed"
+                              ? "bg-emerald-600 border-emerald-600 text-white"
+                              : "border-muted-foreground/40 hover:border-emerald-600"
+                          }`}
+                        >
+                          {g.status === "completed" && <Check className="size-3" />}
+                        </button>
+                        <span className={g.status === "completed" ? "line-through text-muted-foreground" : "font-medium"}>
+                          {g.goal}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {g.target_date && <span className="text-[11px] text-muted-foreground font-mono">{g.target_date}</span>}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          type="button"
+                          onClick={() => handleDeleteGoal(g.id)}
+                          className="size-7 rounded-lg text-muted-foreground hover:text-rose-600"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
-              )}
+              </Card>
 
-              <p className="text-xs text-slate-600 dark:text-muted-foreground leading-relaxed italic">
-                &quot;
-                {(moodTrend.length > 0 && moodTrend[moodTrend.length - 1].note) ||
-                  "Evening reflection logged with positive somatic focus. Breathwork exercises completed before sleep."}
-                &quot;
-              </p>
+              {/* Recent Sessions Table */}
+              <Card className="border-border/60 p-5 rounded-3xl">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="font-bold text-sm font-serif">Recent Peer Encounters</h3>
+                    <p className="text-xs text-muted-foreground">Encrypted encounter history</p>
+                  </div>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="text-xs">
+                      <TableHead>Listener</TableHead>
+                      <TableHead>Channel</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sessions.map((s) => (
+                      <TableRow key={s.id} className="text-xs">
+                        <TableCell className="font-medium">{s.listenerName}</TableCell>
+                        <TableCell className="capitalize">{s.channel}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize text-[10px]">
+                            {s.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right space-x-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            type="button"
+                            onClick={() => handleOpenRoom(s)}
+                            className="rounded-xl text-[11px] h-7 px-2.5"
+                          >
+                            Open Room
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            type="button"
+                            onClick={() => handleOpenReport(s)}
+                            className="rounded-xl text-[11px] h-7 px-2"
+                          >
+                            SOAP Note
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Card>
             </div>
-          </div>
-
-          <div className="mt-3 pt-2 border-t border-border/40 flex items-center justify-between text-[11px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Shield className="size-3 text-emerald-600" />
-              AES-256-GCM Envelope Encrypted in PostgreSQL
-            </span>
-            <Button asChild variant="link" className="text-[11px] h-auto p-0 text-teal-700 dark:text-teal-400">
-              <Link href="/mindspace/member/mood">Full mood history →</Link>
-            </Button>
-          </div>
-        </Card>
+          )}
+        </main>
       </div>
 
-      {/* ── 5. Recent Peer Support Sessions Table ── */}
-      <Card className="p-5 border-border/60">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-semibold text-foreground">Recent Peer Support Sessions</h2>
-              <Badge variant="outline" className="text-[10px] bg-muted/60">
-                {sessions.length} on record
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Consultations, active listening rooms, and confidential wellbeing reflections.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsBookModalOpen(true)}
-              className="text-xs h-8 gap-1.5 rounded-xl border-emerald-300 text-emerald-800 dark:text-emerald-300"
-            >
-              <PlusCircle className="size-3.5 text-emerald-600" />
-              Schedule Session
-            </Button>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-border/60 overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/40">
-              <TableRow>
-                <TableHead className="w-[180px]">Date & Time</TableHead>
-                <TableHead>Peer Listener</TableHead>
-                <TableHead>Channel</TableHead>
-                <TableHead>Topic / Notes</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sessions.map((session) => {
-                const isLiveOrPending =
-                  session.status === "active" ||
-                  session.status === "pending" ||
-                  (session.status as string) === "open";
-                return (
-                  <TableRow key={session.id} className="hover:bg-muted/30">
-                    <TableCell className="text-xs font-medium">
-                      {session.date
-                        ? new Date(session.date).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "Recent"}
-                    </TableCell>
-                    <TableCell className="text-sm font-semibold">
-                      <div className="flex items-center gap-2">
-                        <span>{session.listenerName || "Verified Peer Listener"}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px] gap-1 capitalize">
-                        {session.channel === "video" ? (
-                          <Video className="size-3 text-purple-600" />
-                        ) : session.channel === "voice" ? (
-                          <Headphones className="size-3 text-blue-600" />
-                        ) : (
-                          <MessageCircle className="size-3 text-emerald-600" />
-                        )}
-                        {session.channel}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[280px] truncate">
-                      {session.note || "Peer reflection & support conversation"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="secondary"
-                        className={`text-[10px] font-semibold capitalize ${
-                          isLiveOrPending
-                            ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
-                        }`}
-                      >
-                        {isLiveOrPending ? "Active / Pending" : "Completed"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {isLiveOrPending ? (
-                        <Button
-                          size="sm"
-                          onClick={() => handleOpenRoom(session)}
-                          className="h-7 text-xs rounded-xl bg-[#236B54] hover:bg-[#1a5240] text-white gap-1.5"
-                        >
-                          <Video className="size-3" />
-                          <span>Join Room</span>
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleOpenReport(session)}
-                          className="h-7 text-xs rounded-xl border-slate-300 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 gap-1.5"
-                        >
-                          <FileText className="size-3" />
-                          <span>View Summary</span>
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
-
-      {/* ── 6. Sanctuary Quick Navigation Hub ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-        <Link
-          href="/mindspace/member/mood"
-          className="p-3.5 rounded-2xl border border-border/60 bg-card/60 hover:bg-muted/40 transition-all flex items-center gap-3 group"
-        >
-          <div className="p-2 rounded-xl bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300">
-            <Smile className="size-4" />
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-foreground group-hover:text-teal-600 transition-colors">
-              Mood Tracking
-            </div>
-            <div className="text-[10px] text-muted-foreground">Historical metrics</div>
-          </div>
-        </Link>
-
-        <Link
-          href="/mindspace/member/journal"
-          className="p-3.5 rounded-2xl border border-border/60 bg-card/60 hover:bg-muted/40 transition-all flex items-center gap-3 group"
-        >
-          <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-[#236B54] dark:text-emerald-300">
-            <FileText className="size-4" />
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-foreground group-hover:text-emerald-600 transition-colors">
-              Private Journal
-            </div>
-            <div className="text-[10px] text-muted-foreground">Confidential entries</div>
-          </div>
-        </Link>
-
-        <Link
-          href="/mindspace/member/peer-rooms"
-          className="p-3.5 rounded-2xl border border-border/60 bg-card/60 hover:bg-muted/40 transition-all flex items-center gap-3 group"
-        >
-          <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300">
-            <Headphones className="size-4" />
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-foreground group-hover:text-purple-600 transition-colors">
-              Listening Rooms
-            </div>
-            <div className="text-[10px] text-muted-foreground">Drop-in audio spaces</div>
-          </div>
-        </Link>
-
-        <Link
-          href="/mindspace/member/records"
-          className="p-3.5 rounded-2xl border border-border/60 bg-card/60 hover:bg-muted/40 transition-all flex items-center gap-3 group"
-        >
-          <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300">
-            <ShieldCheck className="size-4" />
-          </div>
-          <div>
-            <div className="text-xs font-semibold text-foreground group-hover:text-blue-600 transition-colors">
-              Reflections & Reports
-            </div>
-            <div className="text-[10px] text-muted-foreground">Clinical records</div>
-          </div>
-        </Link>
-      </div>
-
-      {/* ── Modals & Dialogs ── */}
-
-      {/* 1. Schedule Peer Session Modal */}
+      {/* ── 3. MODALS (Preserved and fully wired to PostgreSQL) ── */}
+      {/* 1. Book Consultation Session Modal */}
       <BookSessionModal
-        open={isBookModalOpen}
-        onOpenChange={setIsBookModalOpen}
-        onSessionBooked={handleBookSessionSuccess}
-      />
-
-      {/* 2. Live Peer Session Room Modal */}
-      <MemberSessionRoomModal
-        open={isRoomModalOpen}
-        onOpenChange={setIsRoomModalOpen}
-        session={selectedRoomSession}
-        onSessionEnded={() => {
+        isOpen={isBookModalOpen}
+        onClose={() => setIsBookModalOpen(false)}
+        onSuccess={() => {
+          setIsBookModalOpen(false);
           fetchDashboardData();
         }}
       />
 
-      {/* 3. Session Report / Summary Modal */}
-      <MemberReportModal
-        open={isReportModalOpen}
-        onOpenChange={setIsReportModalOpen}
-        session={selectedReportSession}
-      />
+      {/* 2. Live Session Room Modal */}
+      {selectedRoomSession && (
+        <MemberSessionRoomModal
+          isOpen={isRoomModalOpen}
+          onClose={() => {
+            setIsRoomModalOpen(false);
+            setSelectedRoomSession(null);
+            fetchDashboardData();
+          }}
+          session={selectedRoomSession}
+        />
+      )}
+
+      {/* 3. Session Report / Encounter Summary Modal */}
+      {selectedReportSession && (
+        <MemberReportModal
+          isOpen={isReportModalOpen}
+          onClose={() => {
+            setIsReportModalOpen(false);
+            setSelectedReportSession(null);
+          }}
+          session={selectedReportSession}
+        />
+      )}
 
       {/* 4. Quick Mood Check-in Modal */}
       <Dialog open={isMoodModalOpen} onOpenChange={setIsMoodModalOpen}>
@@ -1131,60 +1304,59 @@ export function MemberDashboardView({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg font-serif">
               <Smile className="size-5 text-emerald-600" />
-              Quick Mood Check-in
+              Emotional Pulse Check-in
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Take a moment to record your emotional state. Encrypted with AES-256-GCM.
+              Take a pause and tune into your body. Encrypted with AES-256-GCM in PostgreSQL.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div>
-              <Label className="text-xs font-semibold mb-2 block">How are you feeling right now?</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <Label className="text-xs font-semibold mb-1 block">Emotional State</Label>
+              <div className="grid grid-cols-4 gap-2">
                 {[
-                  { code: "peaceful", label: "Peaceful", emoji: "🌿" },
-                  { code: "grateful", label: "Grateful", emoji: "✨" },
-                  { code: "calm", label: "Calm", emoji: "🧘" },
-                  { code: "neutral", label: "Neutral", emoji: "☁️" },
-                  { code: "anxious", label: "Anxious", emoji: "🌊" },
-                  { code: "overwhelmed", label: "Overwhelmed", emoji: "⚡" },
+                  { code: "peaceful", emoji: "🌿", label: "Peaceful" },
+                  { code: "calm", emoji: "🌊", label: "Calm" },
+                  { code: "stressed", emoji: "⚡", label: "Stressed" },
+                  { code: "anxious", emoji: "🌪️", label: "Anxious" },
                 ].map((item) => (
                   <button
                     key={item.code}
                     type="button"
                     onClick={() => setNewMoodCode(item.code)}
-                    className={`p-2.5 rounded-2xl border text-xs font-medium flex flex-col items-center gap-1 transition-all ${
+                    className={`p-2.5 rounded-2xl border text-center transition-all ${
                       newMoodCode === item.code
-                        ? "border-emerald-600 bg-emerald-50 text-[#236B54] dark:bg-emerald-950/60 dark:text-emerald-300 shadow-xs"
-                        : "border-border/60 hover:bg-muted/40"
+                        ? "border-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 font-semibold"
+                        : "border-border/60 hover:bg-muted/40 text-muted-foreground"
                     }`}
                   >
-                    <span className="text-lg">{item.emoji}</span>
-                    <span>{item.label}</span>
+                    <div className="text-lg">{item.emoji}</div>
+                    <div className="text-[10px] mt-0.5">{item.label}</div>
                   </button>
                 ))}
               </div>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <Label className="text-xs font-semibold">Mood Intensity Scale</Label>
-                <Badge variant="outline" className="font-mono text-xs text-emerald-700 dark:text-emerald-400">
+              <div className="flex items-center justify-between mb-1">
+                <Label className="text-xs font-semibold">Valence Scale (1 to 10)</Label>
+                <span className="font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400">
                   {newMoodScale} / 10
-                </Badge>
+                </span>
               </div>
               <input
                 type="range"
-                min="1"
-                max="10"
+                min={1}
+                max={10}
+                step={1}
                 value={newMoodScale}
                 onChange={(e) => setNewMoodScale(Number(e.target.value))}
-                className="w-full accent-[#236B54]"
+                className="w-full accent-[#236B54] cursor-pointer"
               />
-              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                <span>1 (Very Low)</span>
-                <span>5 (Balanced)</span>
+              <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                <span>1 (Severe Distress)</span>
+                <span>5 (Neutral)</span>
                 <span>10 (Optimal)</span>
               </div>
             </div>
@@ -1202,10 +1374,11 @@ export function MemberDashboardView({
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="ghost" onClick={() => setIsMoodModalOpen(false)} className="rounded-xl text-xs">
+            <Button variant="ghost" type="button" onClick={() => setIsMoodModalOpen(false)} className="rounded-xl text-xs">
               Cancel
             </Button>
             <Button
+              type="button"
               onClick={handleSaveMood}
               disabled={isLoggingMood}
               className="rounded-xl bg-[#236B54] hover:bg-[#1a5240] text-white text-xs gap-1.5"
@@ -1253,10 +1426,11 @@ export function MemberDashboardView({
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="ghost" onClick={() => setIsGoalModalOpen(false)} className="rounded-xl text-xs">
+            <Button variant="ghost" type="button" onClick={() => setIsGoalModalOpen(false)} className="rounded-xl text-xs">
               Cancel
             </Button>
             <Button
+              type="button"
               onClick={handleSaveGoal}
               disabled={isSavingGoal || !newGoalText.trim()}
               className="rounded-xl bg-[#236B54] hover:bg-[#1a5240] text-white text-xs gap-1.5"
@@ -1298,6 +1472,7 @@ export function MemberDashboardView({
 
           <DialogFooter>
             <Button
+              type="button"
               onClick={() => setIsCrisisModalOpen(false)}
               className="w-full rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs"
             >

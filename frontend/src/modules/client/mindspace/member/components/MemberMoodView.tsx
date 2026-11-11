@@ -70,7 +70,7 @@ export function MemberMoodView() {
 
   const fetchMoods = useCallback(async () => {
     try {
-      const res = await fetch("http://localhost:8080/api/v1/wellbeing/moods");
+      const res = await fetch("/api/mindspace/member/moods");
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -89,7 +89,7 @@ export function MemberMoodView() {
   const handleSaveMood = async () => {
     setIsSubmitting(true);
     try {
-      const res = await fetch("http://localhost:8080/api/v1/wellbeing/moods", {
+      const res = await fetch("/api/mindspace/member/moods", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

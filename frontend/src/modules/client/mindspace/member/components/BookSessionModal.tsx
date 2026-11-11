@@ -27,9 +27,11 @@ import {
 import { toast } from "sonner";
 
 export interface BookSessionModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSessionBooked: (session: {
+  open?: boolean;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onClose?: () => void;
+  onSessionBooked?: (session: {
     id: string;
     date: string;
     listenerName: string;
@@ -37,6 +39,7 @@ export interface BookSessionModalProps {
     status: "active" | "completed" | "pending";
     note: string;
   }) => void;
+  onSuccess?: () => void;
 }
 
 const AVAILABLE_LISTENERS = [
@@ -80,9 +83,17 @@ const TIME_SLOTS = [
 
 export function BookSessionModal({
   open,
+  isOpen,
   onOpenChange,
+  onClose,
   onSessionBooked,
+  onSuccess,
 }: BookSessionModalProps) {
+  const isModalOpen = open ?? isOpen ?? false;
+  const handleOpenChange = (val: boolean) => {
+    onOpenChange?.(val);
+    if (!val) onClose?.();
+  };
   const [selectedListener, setSelectedListener] = useState(AVAILABLE_LISTENERS[0]);
   const [selectedDate, setSelectedDate] = useState("Today, Nov 9");
   const [selectedSlot, setSelectedSlot] = useState("06:00 PM");
@@ -110,7 +121,7 @@ export function BookSessionModal({
       }
 
       const savedSession = await res.json();
-      onSessionBooked({
+      onSessionBooked?.({
         id: savedSession.id,
         date: savedSession.date,
         listenerName: savedSession.listenerName,
@@ -119,7 +130,8 @@ export function BookSessionModal({
         note: savedSession.note,
       });
 
-      onOpenChange(false);
+      onSuccess?.();
+      handleOpenChange(false);
       toast.success(`Session Confirmed & Saved to PostgreSQL!`, {
         description: `Scheduled with ${selectedListener.name} via ${channel.toUpperCase()}. You can join the room when ready.`,
         duration: 4500,
@@ -134,8 +146,10 @@ export function BookSessionModal({
         status: "active" as const,
         note: topic,
       };
-      onSessionBooked(fallbackSession);
-      onOpenChange(false);
+      onSessionBooked?.(fallbackSession);
+      onSuccess?.();
+      handleOpenChange(false);
+      
       toast.success(`Session Scheduled with ${selectedListener.name}!`);
     } finally {
       setIsSubmitting(false);
@@ -143,7 +157,7 @@ export function BookSessionModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={isModalOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl p-6">
         <DialogHeader className="space-y-1.5 pb-2">
           <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-semibold text-xs uppercase tracking-wider">
@@ -299,7 +313,7 @@ export function BookSessionModal({
             🔒 Protected by 24/7 Clinical Safety Sentinel & Privacy Boundary.
           </p>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="rounded-xl text-xs">
+            <Button variant="outline" size="sm" onClick={() => handleOpenChange(false)} className="rounded-xl text-xs">
               Cancel
             </Button>
             <Button

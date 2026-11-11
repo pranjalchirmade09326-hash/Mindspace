@@ -61,7 +61,7 @@ export function MemberJournalView() {
 
   const fetchJournal = useCallback(async () => {
     try {
-      const res = await fetch("http://localhost:8080/api/v1/wellbeing/journal");
+      const res = await fetch("/api/mindspace/member/journal");
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -81,7 +81,7 @@ export function MemberJournalView() {
     if (!newBody.trim()) return;
     setIsSubmitting(true);
     try {
-      const res = await fetch("http://localhost:8080/api/v1/wellbeing/journal", {
+      const res = await fetch("/api/mindspace/member/journal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

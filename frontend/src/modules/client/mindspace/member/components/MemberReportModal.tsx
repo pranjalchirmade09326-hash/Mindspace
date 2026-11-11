@@ -27,8 +27,10 @@ import {
 import { toast } from "sonner";
 
 export interface MemberReportModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open?: boolean;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onClose?: () => void;
   session?: {
     id: string;
     date: string;
@@ -39,9 +41,16 @@ export interface MemberReportModalProps {
 
 export function MemberReportModal({
   open,
+  isOpen,
   onOpenChange,
+  onClose,
   session,
 }: MemberReportModalProps) {
+  const isModalOpen = open ?? isOpen ?? false;
+  const handleOpenChange = (val: boolean) => {
+    onOpenChange?.(val);
+    if (!val) onClose?.();
+  };
   const listenerName = session?.listenerName || "Aarav Sharma (Verified Peer Listener)";
   const sessionDate = session?.date
     ? new Date(session.date).toLocaleDateString("en-IN", {
@@ -64,7 +73,7 @@ export function MemberReportModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={isModalOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6">
         <DialogHeader className="space-y-1.5 pb-2 border-b border-border/50">
           <div className="flex items-center justify-between">

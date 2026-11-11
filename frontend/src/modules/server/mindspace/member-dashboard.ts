@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createMindspaceApiClient } from "./api-client";
+import { getServerSession } from "@/modules/server/auth/get-session";
 
 export interface MemberSummary {
   checkinsThisWeek: number;
@@ -199,12 +200,16 @@ export async function loadMemberOverviewData(): Promise<MemberOverviewData | nul
       load(() => request<MemberFollowup[]>("/api/v1/followups")),
     ]);
 
+  const session = await getServerSession().catch(() => null);
+  const currentUserName = session?.user?.name || "Member";
+  const currentUserId = session?.user?.id || "usr-demo-member-01";
+
   if (!summary) {
     // Resilient fallback when FastAPI backend service is initializing
     return {
       summary: {
-        userId: "usr-demo-member-01",
-        displayName: "Priya Sharma",
+        userId: currentUserId,
+        displayName: currentUserName,
         checkinsThisWeek: 5,
         savedReflections: 2,
         activeGoals: 2,
@@ -311,6 +316,7 @@ export async function loadMemberSectionData(sectionId: string): Promise<MemberSe
   }
 
   switch (sectionId) {
+    case "appointments":
     case "my-support": {
       const [requests, conversations] = await Promise.all([
         load(() => request<MemberSupportRequest[]>("/api/v1/peer/match-requests")),
@@ -323,6 +329,7 @@ export async function loadMemberSectionData(sectionId: string): Promise<MemberSe
         conversations: conversations ?? [],
       };
     }
+    case "vitals":
     case "wellbeing": {
       const [moods, reflections, goals, followups] = await Promise.all([
         load(() => request<MemberMood[]>("/api/v1/wellbeing/moods")),

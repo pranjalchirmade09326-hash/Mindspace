@@ -37,24 +37,13 @@ export function SidebarNavUser(props: SidebarNavUserProps) {
   const { name = "", email = "", image, username, role } = user;
   const { state } = useSidebar();
 
-  async function handleLogout() {
-    try {
-      await authClient.signOut();
-    } catch {
-      // ignore
-    }
-    await fetch("/api/auth/dev-logout", { method: "POST" });
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    window.location.href = "/";
-  }
-
   const initials = (name ?? "U")
     .split(" ")
+    .filter(Boolean)
     .map((n) => n[0])
     .join("")
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, 2) || "U";
 
   const rLower = (role ?? "").toLowerCase();
   const displayRole =
@@ -67,6 +56,38 @@ export function SidebarNavUser(props: SidebarNavUserProps) {
       : role
       ? role.charAt(0).toUpperCase() + role.slice(1)
       : "Member";
+
+  const settingsHref =
+    rLower === "patient" || rLower === "member"
+      ? "/mindspace/member/profile"
+      : rLower === "doctor" || rLower === "listener"
+      ? "/mindspace/listener/profile"
+      : "/mindspace/member/profile";
+
+  async function handleLogout() {
+    try {
+      await authClient.signOut();
+    } catch {
+      // ignore
+    }
+    try {
+      await fetch("/api/auth/dev-logout", { method: "POST" });
+    } catch {
+      // ignore
+    }
+    try {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("member_auth_token");
+      document.cookie = "mindspace_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+      document.cookie = "dev_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+      document.cookie = "activeRoleRedirectUrl=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+      document.cookie = "better-auth.session_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+    } catch {
+      // ignore
+    }
+    window.location.href = "/en/login";
+  }
 
   return (
     <DropdownMenu>
@@ -138,7 +159,7 @@ export function SidebarNavUser(props: SidebarNavUserProps) {
 
         <DropdownMenuItem asChild className="cursor-pointer">
           <Link
-            href="/bezs/settings"
+            href={settingsHref}
             className="flex items-center gap-2 w-full"
           >
             <Settings2 className="size-4" />
