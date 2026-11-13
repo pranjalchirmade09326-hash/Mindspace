@@ -57,4 +57,4 @@ Thumbs.db
 .agents/
 deploy/
 docs/
-test/
+tests/
