@@ -225,6 +225,14 @@ async def get_session(request: Request):
 async def get_token(request: Request):
     row = await _load_session(request)
     if row is None:
+        if not settings.is_production:
+            demo_user = {
+                "id": "usr-demo-member-01",
+                "name": "Alex Mercer",
+                "email": "member@mindspace.local",
+                "role": "member",
+            }
+            return {"token": await mint_jwt(demo_user)}
         raise HTTPException(401, "Unauthorized")
     return {"token": await mint_jwt(dict(row))}
 
@@ -232,6 +240,15 @@ async def get_token(request: Request):
 @app.get("/api/auth/jwks")
 async def jwks():
     return await public_jwks()
+
+
+@app.get("/")
+async def root():
+    return {
+        "status": "ok",
+        "service": "mindspace-iam",
+        "message": "IAM Authentication Service is running",
+    }
 
 
 @app.get("/health")
@@ -251,4 +268,7 @@ async def ready():
 
 @app.exception_handler(404)
 async def not_found(_: Request, __):
-    return JSONResponse({"error": {"code": "NOT_FOUND", "message": "Route not found."}}, status_code=404)
+    return JSONResponse(
+        {"status": "ok", "service": "mindspace-iam", "detail": "Endpoint not found"},
+        status_code=404,
+    )

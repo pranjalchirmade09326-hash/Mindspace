@@ -643,218 +643,43 @@ export function MemberDashboardView({
 
   return (
     <div className="space-y-4 max-w-[105rem] mx-auto pb-4">
-      {/* ── MAIN TWO-COLUMN LAYOUT: Left Pages Sidebar + Center ChatGPT Sanctuary Screen ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[calc(100vh-8.5rem)] min-h-[660px]">
-        {/* ── LEFT COLUMN: ChatGPT-style Navigation & Pages Sidebar (3 cols on xl, 4 cols on lg) ── */}
-        <aside className="lg:col-span-4 xl:col-span-3 flex flex-col justify-between rounded-3xl border border-border/70 bg-card/70 backdrop-blur-sm p-4 space-y-4 shadow-xs overflow-hidden h-full">
-          <div className="space-y-3.5 overflow-y-auto pr-1">
-            {/* New Reflection Chat Button (like ChatGPT's + New Chat) */}
-            <Button
-              type="button"
-              onClick={() => {
-                setActiveCenterView("chat");
-                handleStartNewChat();
-              }}
-              className="w-full rounded-2xl bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-800 hover:to-teal-800 text-white font-semibold h-11 px-4 gap-2 shadow-sm justify-start text-xs sm:text-sm"
-            >
-              <Plus className="size-4" />
-              <span>New Reflection Chat</span>
-            </Button>
-
-            {/* Core Pages & Care Modules Navigation */}
-            <div className="space-y-1">
-              <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Sanctuary Modules
-              </p>
-
-              {/* 1. Sanctuary AI Chat */}
-              <button
-                type="button"
-                onClick={() => setActiveCenterView("chat")}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium transition-all ${
-                  activeCenterView === "chat"
-                    ? "bg-emerald-100/90 text-emerald-950 dark:bg-emerald-950/70 dark:text-emerald-300 font-semibold shadow-xs"
-                    : "text-foreground hover:bg-muted/70"
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className={`p-1.5 rounded-xl ${activeCenterView === "chat" ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"}`}>
-                    <Sparkles className="size-3.5" />
-                  </div>
-                  <span>AI Sanctuary Chat</span>
-                </div>
-                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300">
-                  Active
-                </Badge>
-              </button>
-
-              {/* 2. Daily Mood Check-in */}
-              <Link
-                href="/mindspace/member/mood"
-                className="w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium text-foreground hover:bg-muted/70 transition-colors"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
-                    <Smile className="size-3.5" />
-                  </div>
-                  <span>Mood & Pulse</span>
-                </div>
-                <span className="text-[11px] text-muted-foreground font-mono">
-                  {moodTrend[moodTrend.length - 1]?.scale_value ? `${moodTrend[moodTrend.length - 1].scale_value}/10` : "Log"}
-                </span>
-              </Link>
-
-              {/* 3. Encrypted Reflection Journal */}
-              <Link
-                href="/mindspace/member/journal"
-                className="w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium text-foreground hover:bg-muted/70 transition-colors"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-xl bg-violet-100 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300">
-                    <FileText className="size-3.5" />
-                  </div>
-                  <span>Encrypted Journal</span>
-                </div>
-                <Lock className="size-3 text-muted-foreground" />
-              </Link>
-
-              {/* 4. Wellbeing Goals & Habits */}
-              <Link
-                href="/mindspace/member/goals"
-                className="w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium text-foreground hover:bg-muted/70 transition-colors"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-xl bg-teal-100 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300">
-                    <Target className="size-3.5" />
-                  </div>
-                  <span>Habits & Goals</span>
-                </div>
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-mono">
-                  {activeGoals.filter((g) => g.status === "active").length}
-                </Badge>
-              </Link>
-
-              {/* 5. Consultation Room */}
-              <Link
-                href="/mindspace/member/consultation"
-                className="w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium text-foreground hover:bg-muted/70 transition-colors"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
-                    <Headphones className="size-3.5" />
-                  </div>
-                  <span>Consultation Room</span>
-                </div>
-                <span className="text-[10px] text-emerald-600 font-semibold">Live</span>
-              </Link>
-
-              {/* 6. Full Analytics & Records Switcher */}
-              <button
-                type="button"
-                onClick={() => setActiveCenterView("analytics")}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium transition-all ${
-                  activeCenterView === "analytics"
-                    ? "bg-emerald-100/90 text-emerald-950 dark:bg-emerald-950/70 dark:text-emerald-300 font-semibold shadow-xs"
-                    : "text-foreground hover:bg-muted/70"
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className={`p-1.5 rounded-xl ${activeCenterView === "analytics" ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"}`}>
-                    <TrendingUp className="size-3.5" />
-                  </div>
-                  <span>Wellness Analytics</span>
-                </div>
-                <ArrowRight className="size-3.5 text-muted-foreground" />
-              </button>
-
-              {/* 7. Profile & Settings */}
-              <Link
-                href="/mindspace/member/profile"
-                className="w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium text-foreground hover:bg-muted/70 transition-colors"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    <Sliders className="size-3.5" />
-                  </div>
-                  <span>Sanctuary Settings</span>
-                </div>
-              </Link>
-            </div>
-
-            {/* Guided Reflections (Clickable Prompts) */}
-            <div className="space-y-1 pt-2 border-t border-border/60">
-              <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Guided Prompts
-              </p>
-              <div className="space-y-1">
-                {[
-                  { title: "🌿 Evening breathwork & calm", prompt: "Can you guide me through a 2-minute 4-7-8 breathing exercise?" },
-                  { title: "💼 Workplace stress & focus", prompt: "I'm feeling overwhelmed with work deadlines today." },
-                  { title: "🌙 Sleep routine & wind-down", prompt: "Help me calm my racing thoughts before going to sleep." },
-                  { title: "🤝 Connect with peer listener", prompt: "I'd like to talk to a human peer listener on the queue." },
-                ].map((item, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      setActiveCenterView("chat");
-                      handleSendChatMessage(item.prompt);
-                    }}
-                    className="w-full text-left px-3 py-1.5 rounded-xl text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors truncate block"
-                    title={item.prompt}
-                  >
-                    {item.title}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Profile & Security Pill */}
-          <div className="pt-2 border-t border-border/60 space-y-1.5 shrink-0">
-            <div className="flex items-center justify-between text-xs px-1">
-              <span className="font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
-                🔥 5-Day Streak
-              </span>
-              <span className="text-[11px] text-muted-foreground font-mono">
-                {sessions.length} Sessions
-              </span>
-            </div>
-            <div className="p-2.5 rounded-2xl bg-muted/60 border border-border/40 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 truncate">
-                <div className="size-7 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
-                  {firstName[0]}
-                </div>
-                <div className="truncate">
-                  <p className="font-semibold text-foreground text-xs leading-none truncate">{displayName}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Tier 1 Member</p>
-                </div>
-              </div>
-              <span title="AES-256-GCM Protected"><Lock className="size-3 text-emerald-600 shrink-0" /></span>
-            </div>
-          </div>
-        </aside>
-
-        {/* ── CENTER COLUMN: Full-Height ChatGPT Conversational Sanctuary Screen ── */}
-        <main className="lg:col-span-8 xl:col-span-9 flex flex-col rounded-3xl border border-border/70 bg-card/75 backdrop-blur-sm shadow-xs overflow-hidden h-full">
+      {/* ── FULL-SCREEN CHATGPT SANCTUARY ── */}
+      <div className="w-full h-[calc(100vh-8.5rem)] min-h-[660px] flex flex-col">
+        <main className="flex-1 flex flex-col rounded-3xl border border-border/70 bg-card/75 backdrop-blur-sm shadow-xs overflow-hidden h-full">
           {/* Top Bar for Center Area with Quick Sanctuary Actions */}
           <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-border/60 bg-muted/30 gap-2 shrink-0">
-            <div className="flex items-center gap-2.5">
-              <div className="size-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                <Sparkles className="size-4" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-bold text-foreground">
-                    MindSpace Sanctuary AI
-                  </h2>
-                  <Badge variant="outline" className="text-[10px] py-0 px-2 rounded-full border-emerald-400 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                    Tier 1 Companion
-                  </Badge>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                onClick={() => {
+                  setActiveCenterView("chat");
+                  handleStartNewChat();
+                }}
+                className="rounded-2xl bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-800 hover:to-teal-800 text-white font-semibold h-9 px-3.5 gap-2 shadow-xs text-xs sm:text-sm"
+              >
+                <Plus className="size-4" />
+                <span>New Chat</span>
+              </Button>
+
+              <div className="h-5 w-px bg-border/60 hidden sm:block" />
+
+              <div className="flex items-center gap-2.5">
+                <div className="size-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <Sparkles className="size-4" />
                 </div>
-                <p className="text-[10px] sm:text-[11px] text-muted-foreground">
-                  Stepped-Care Navigator • Online & Ready to Listen
-                </p>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-bold text-foreground">
+                      MindSpace Sanctuary AI
+                    </h2>
+                    <Badge variant="outline" className="text-[10px] py-0 px-2 rounded-full border-emerald-400 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                      Tier 1 Companion
+                    </Badge>
+                  </div>
+                  <p className="text-[10px] sm:text-[11px] text-muted-foreground">
+                    Stepped-Care Navigator • Online & Ready to Listen
+                  </p>
+                </div>
               </div>
             </div>
 

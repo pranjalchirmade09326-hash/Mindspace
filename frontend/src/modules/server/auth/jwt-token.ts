@@ -1,26 +1,32 @@
 import { headers, cookies } from "next/headers";
 
 export async function getAuthToken(): Promise<string> {
-  // 1. Check local session dev token first
+  // 1. Check local session dev token cookie first
   try {
     const cookieStore = await cookies();
     const devToken = cookieStore.get("dev_token");
     if (devToken?.value) return devToken.value;
   } catch {
-    // Continue to external fetch
+    // Continue
   }
 
-  // 2. Fetch from external BetterAuth if configured
+  // 2. Fetch from BetterAuth / IAM server
+  const iamBase = process.env.BETTER_AUTH_URL || "http://localhost:5001";
   try {
-    const hdrs = await headers();
-    const cookie = hdrs.get("cookie") ?? "";
+    let cookie = "";
+    try {
+      const hdrs = await headers();
+      cookie = hdrs.get("cookie") ?? "";
+    } catch {
+      // Background / Static context
+    }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 150);
+    const timeout = setTimeout(() => controller.abort(), 2500);
 
-    const res = await fetch(`${process.env.BETTER_AUTH_URL}/api/auth/token`, {
+    const res = await fetch(`${iamBase}/api/auth/token`, {
       method: "GET",
-      headers: { cookie },
+      headers: cookie ? { cookie } : {},
       cache: "no-store",
       signal: controller.signal,
     });
@@ -31,8 +37,8 @@ export async function getAuthToken(): Promise<string> {
       const token: string | undefined = data.token ?? data.jwt ?? data.access_token;
       if (token) return token;
     }
-  } catch {
-    // Fall back to dev token
+  } catch (err) {
+    console.warn("[jwt-token] Unable to fetch token from IAM, falling back:", err);
   }
 
   return "dev-jwt-token";

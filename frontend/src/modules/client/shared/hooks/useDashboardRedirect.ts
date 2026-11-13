@@ -5,7 +5,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "better-auth/react";
+import { useSession } from "@/modules/client/auth/betterauth/auth-client";
 
 interface DashboardConfig {
   member: string;

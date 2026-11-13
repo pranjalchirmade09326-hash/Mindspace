@@ -6,7 +6,7 @@
  * Implements:
  *   - Pre-Call Handshake & Media Check (Connecting / Ringing State)
  *   - In-Call Stage: Video/Audio feed, PiP, Call Timer (00:00+), Grounding Breathwork (4-7-8)
- *   - In-Call Interactive Dialogue & Live Text Chat
+ *   - In-Call Interactive Dialogue & Live Text Chat with Dynamic Spoken Captions & Quick Chips
  *   - Safety Sentinel Circuit Breaker (<2ms crisis monitoring)
  *   - Post-Call Wellbeing Reflection & Debrief (Post-call Mood check-in, Star rating, Encrypted Journal sync)
  *   - Complete PostgreSQL Integration (/api/mindspace/member/conversations/[id]/close & /api/mindspace/member/moods)
@@ -16,7 +16,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
+  DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -25,19 +25,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Clock,
-  Headphones,
   Mic,
   MicOff,
   PhoneOff,
   PhoneCall,
   Radio,
-  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Video,
   VideoOff,
   Volume2,
-  FileText,
   Heart,
   Send,
   Wind,
@@ -50,6 +47,7 @@ import {
   Frown,
   RefreshCw,
   X,
+  MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -67,13 +65,36 @@ export interface MemberSessionRoomModalProps {
   onSessionEnded?: () => void;
 }
 
-interface ChatMessage {
+interface DialogueEntry {
   id: string;
-  sender: "member" | "listener";
-  senderName: string;
+  speaker: "member" | "listener";
+  speakerName: string;
   text: string;
   time: string;
 }
+
+const QUICK_PROMPTS = [
+  {
+    label: "🧘 Practice 4-7-8 breathwork",
+    text: "Could we practice the 4-7-8 grounding breath together?",
+    triggerBreathwork: true,
+  },
+  {
+    label: "🌿 Feeling overwhelmed & stressed",
+    text: "I have been feeling quite overwhelmed with daily stress and finding it hard to relax.",
+    triggerBreathwork: false,
+  },
+  {
+    label: "💭 Racing thoughts at night",
+    text: "My thoughts keep racing when I try to sleep, and it feels exhausting.",
+    triggerBreathwork: false,
+  },
+  {
+    label: "✨ That helps a lot, feeling lighter",
+    text: "Thank you for listening, it really helps to speak this out in a safe space.",
+    triggerBreathwork: false,
+  },
+];
 
 export function MemberSessionRoomModal({
   open,
@@ -111,17 +132,14 @@ export function MemberSessionRoomModal({
   const [breathPhase, setBreathPhase] = useState<"Inhale" | "Hold" | "Exhale">("Inhale");
   const [breathCount, setBreathCount] = useState(4);
 
-  // In-Call Live Chat
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "msg-1",
-      sender: "listener",
-      senderName: "Peer Listener",
-      text: "Welcome to this confidential sanctuary room. Feel free to speak or type at your own pace.",
-      time: "Just now",
-    },
-  ]);
+  // Dynamic Spoken Dialogue & In-Call Chat
+  const [dialogue, setDialogue] = useState<DialogueEntry[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [isListenerSpeaking, setIsListenerSpeaking] = useState(false);
+
+  // Auto-scroll refs
+  const dialogueEndRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Post-Session Reflection Form State
   const [postMoodRating, setPostMoodRating] = useState<number>(8);
@@ -131,8 +149,8 @@ export function MemberSessionRoomModal({
   const [syncToJournal, setSyncToJournal] = useState(true);
   const [isSubmittingReflection, setIsSubmittingReflection] = useState(false);
 
-  const listenerName = session?.listenerName || "Aarav Sharma (Verified Peer Listener)";
-  const listenerShortName = listenerName.split(" ")[0] || "Aarav";
+  const listenerName = session?.listenerName || "Priya Verma (Empathetic)";
+  const listenerShortName = listenerName.split(" ")[0] || "Priya";
 
   // Reset states whenever modal opens
   useEffect(() => {
@@ -142,12 +160,27 @@ export function MemberSessionRoomModal({
       setIsMuted(false);
       setIsVideoOn(session?.channel !== "voice");
       setIsBreathworkActive(false);
-      setMessages([
+      setIsListenerSpeaking(false);
+      setDialogue([
         {
-          id: "msg-1",
-          sender: "listener",
-          senderName: listenerShortName,
-          text: `Hello! I'm ${listenerShortName}. Thank you for connecting. I'm here to listen without judgment. How are you feeling right now?`,
+          id: "d-1",
+          speaker: "listener",
+          speakerName: listenerShortName,
+          text: `Hello! Thank you for connecting today. I'm here to listen without judgment. How are you feeling right now?`,
+          time: "Just now",
+        },
+        {
+          id: "d-2",
+          speaker: "member",
+          speakerName: "You (Member)",
+          text: `I have been feeling quite overwhelmed with work deadlines this week, and finding it hard to switch off in the evenings.`,
+          time: "Just now",
+        },
+        {
+          id: "d-3",
+          speaker: "listener",
+          speakerName: listenerShortName,
+          text: `I completely understand. That constant mental pressure takes a heavy toll. Would you like to try a calming grounding breath, or simply talk it out?`,
           time: "Just now",
         },
       ]);
@@ -169,6 +202,15 @@ export function MemberSessionRoomModal({
     }
   }, [isModalOpen, session?.id, session?.channel, listenerShortName]);
 
+  // Scroll to bottom whenever dialogue updates
+  useEffect(() => {
+    if (activeTab === "transcript") {
+      dialogueEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    } else {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [dialogue, activeTab]);
+
   // Call duration counter during "active" stage
   useEffect(() => {
     if (!isModalOpen || stage !== "active") return;
@@ -179,24 +221,6 @@ export function MemberSessionRoomModal({
   }, [isModalOpen, stage]);
 
   // Somatic 4-7-8 breathwork cycle runner
-  useEffect(() => {
-    if (!isBreathworkActive || stage !== "active") return;
-    let count = 4;
-    setBreathPhase("Inhale");
-    setBreathCount(4);
-
-    const breathInterval = setInterval(() => {
-      setBreathCount((prev) => {
-        if (prev > 1) return prev - 1;
-        // Transition phases
-        return 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(breathInterval);
-  }, [isBreathworkActive, stage]);
-
-  // Dynamic phase changes for 4-7-8 breathing
   useEffect(() => {
     if (!isBreathworkActive || stage !== "active") return;
 
@@ -221,49 +245,83 @@ export function MemberSessionRoomModal({
     return () => clearTimeout(timeoutId);
   }, [isBreathworkActive, stage]);
 
+  // Breathwork 1-second countdown pacer
+  useEffect(() => {
+    if (!isBreathworkActive || stage !== "active") return;
+    const pacer = setInterval(() => {
+      setBreathCount((prev) => (prev > 1 ? prev - 1 : 1));
+    }, 1000);
+    return () => clearInterval(pacer);
+  }, [isBreathworkActive, stage]);
+
   const formatTimer = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Send in-call chat message
-  const handleSendMessage = () => {
-    if (!chatInput.trim()) return;
-    const userMsg: ChatMessage = {
-      id: `m-${Date.now()}`,
-      sender: "member",
-      senderName: "You",
-      text: chatInput.trim(),
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+  // Dispatch interactive member message and generate empathetic listener voice caption
+  const handleUserSubmission = (textToSend: string, triggerBreath?: boolean) => {
+    const cleanedText = textToSend.trim();
+    if (!cleanedText) return;
+
+    const currentTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+    const userEntry: DialogueEntry = {
+      id: `u-${Date.now()}`,
+      speaker: "member",
+      speakerName: "You (Member)",
+      text: cleanedText,
+      time: currentTime,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    setDialogue((prev) => [...prev, userEntry]);
     setChatInput("");
 
-    // Simulated empathetic peer response after 2.5 seconds
+    if (triggerBreath) {
+      setIsBreathworkActive(true);
+    }
+
+    // Indicate listener is processing and speaking
+    setIsListenerSpeaking(true);
+
     setTimeout(() => {
-      const responses = [
-        "I hear how heavy that feels. Take all the time you need.",
-        "Thank you for sharing that with me. Your feelings are completely valid.",
-        "I'm right here with you. Would you like to pause and breathe together for a moment?",
-        "It takes courage to say that out loud. You are doing great.",
-      ];
-      const peerMsg: ChatMessage = {
-        id: `p-${Date.now()}`,
-        sender: "listener",
-        senderName: listenerShortName,
-        text: responses[Math.floor(Math.random() * responses.length)],
+      let responseText = "";
+      if (triggerBreath) {
+        responseText = `Let's do that right now. Follow the rhythm of the circle — breathe in gently through your nose, hold with stillness, and let out a long calming sigh.`;
+      } else if (cleanedText.toLowerCase().includes("overwhelm") || cleanedText.toLowerCase().includes("stress")) {
+        responseText = `I hear how heavy that is. Carrying all of that alone is draining. Remember you don't have to fix everything right now — just being here is a courageous step.`;
+      } else if (cleanedText.toLowerCase().includes("sleep") || cleanedText.toLowerCase().includes("racing")) {
+        responseText = `When our mind races at night, it's often trying to process unfinished tension. Let's ground your feet into the floor and release your shoulders down.`;
+      } else if (cleanedText.toLowerCase().includes("thank") || cleanedText.toLowerCase().includes("lighter")) {
+        responseText = `You're so welcome. Your willingness to speak your truth is so powerful. Notice this sense of release in your chest right now.`;
+      } else {
+        const fallbacks = [
+          "Thank you for sharing that with me. I'm holding space for everything you feel without judgment.",
+          "I hear you completely. Take all the time you need — there is no rush here.",
+          "That makes total sense given what you've been navigating. Let's take one steady breath together.",
+        ];
+        responseText = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+      }
+
+      const listenerEntry: DialogueEntry = {
+        id: `l-${Date.now()}`,
+        speaker: "listener",
+        speakerName: listenerShortName,
+        text: responseText,
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
-      setMessages((prev) => [...prev, peerMsg]);
-    }, 2500);
+
+      setDialogue((prev) => [...prev, listenerEntry]);
+      setIsListenerSpeaking(false);
+    }, 1400);
   };
 
   // Trigger End of Call -> Advances to Reflection Stage
   const handleEndCallClick = () => {
     setStage("reflection");
     setIsBreathworkActive(false);
+    setIsListenerSpeaking(false);
   };
 
   // Finalize Reflection and persist to PostgreSQL
@@ -328,10 +386,27 @@ export function MemberSessionRoomModal({
 
   return (
     <Dialog open={isModalOpen} onOpenChange={handleModalClose}>
-      <DialogContent className="max-w-4xl h-[88vh] p-0 overflow-hidden flex flex-col rounded-3xl bg-slate-950 text-white border-slate-800 shadow-2xl">
-        {/* ═════════════════════════════════════════════════════════════════
+      <DialogContent className="max-w-4xl h-[88vh] p-0 overflow-hidden flex flex-col rounded-3xl bg-slate-950 text-white border-slate-800 shadow-2xl relative">
+        <DialogTitle className="sr-only">
+          Peer Sanctuary Consultation Room - {listenerName}
+        </DialogTitle>
+        <DialogDescription className="sr-only">
+          Live encrypted peer consultation, video, audio and real-time chat room
+        </DialogDescription>
+
+        {/* Global Exit Cross Button */}
+        <button
+          type="button"
+          onClick={() => handleModalClose(false)}
+          className="absolute top-4 right-4 z-50 p-2 rounded-full bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+          title="Close Sanctuary Room"
+        >
+          <X className="size-4" />
+        </button>
+
+        {/* ════════════════════════════════════════════════════════════════
             STAGE 1: CONNECTING / PRE-CALL HANDSHAKE
-           ═════════════════════════════════════════════════════════════════ */}
+           ════════════════════════════════════════════════════════════════ */}
         {stage === "connecting" && (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center relative overflow-hidden bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950">
             {/* Background glowing aura */}
@@ -424,13 +499,13 @@ export function MemberSessionRoomModal({
           </div>
         )}
 
-        {/* ═════════════════════════════════════════════════════════════════
+        {/* ════════════════════════════════════════════════════════════════
             STAGE 2: ACTIVE LIVE CALL
-           ═════════════════════════════════════════════════════════════════ */}
+           ════════════════════════════════════════════════════════════════ */}
         {stage === "active" && (
           <>
             {/* Header Bar */}
-            <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-800/80 bg-slate-900/70 backdrop-blur-md">
+            <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-800/80 bg-slate-900/70 backdrop-blur-md pr-12">
               <div className="flex items-center gap-3">
                 <div className="size-2.5 rounded-full bg-emerald-500 animate-pulse" />
                 <div>
@@ -440,7 +515,7 @@ export function MemberSessionRoomModal({
                       Live Consultation
                     </Badge>
                   </div>
-                  <p className="text-xs text-slate-400">{session?.note || "Active Wellbeing Check-in"}</p>
+                  <p className="text-xs text-slate-400">{session?.note || "General wellbeing and stress relief reflection"}</p>
                 </div>
               </div>
 
@@ -473,7 +548,7 @@ export function MemberSessionRoomModal({
               </div>
             </div>
 
-            {/* Main Stage Grid: Video Feed + Live Transcript / Chat */}
+            {/* Main Stage Grid: Video Feed + Live Dialogue / Chat */}
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 min-h-0">
               {/* Video / Call Center (8 Cols) */}
               <div className="lg:col-span-8 p-6 flex flex-col justify-between relative bg-gradient-to-b from-slate-900/40 via-slate-950 to-slate-950">
@@ -481,7 +556,7 @@ export function MemberSessionRoomModal({
                 <div className="flex-1 rounded-2xl border border-slate-800/80 bg-slate-900/80 flex flex-col items-center justify-center p-8 relative overflow-hidden shadow-inner">
                   {/* Somatic Breathwork Overlay (if enabled) */}
                   {isBreathworkActive && (
-                    <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-6 text-center">
+                    <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md z-20 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in-95 duration-200">
                       <div className="relative flex items-center justify-center mb-4">
                         <div
                           className={`rounded-full border-4 border-emerald-400 bg-emerald-500/10 flex items-center justify-center transition-all duration-1000 ${
@@ -513,25 +588,29 @@ export function MemberSessionRoomModal({
                   )}
 
                   {/* Listener Avatar & Speech Indicator */}
-                  <div className="size-24 rounded-full bg-[#236B54]/40 border-2 border-emerald-500/60 flex items-center justify-center mb-3 text-emerald-300 font-bold text-2xl shadow-xl shadow-emerald-950/50">
+                  <div className={`size-24 rounded-full bg-[#236B54]/40 border-2 flex items-center justify-center mb-3 text-emerald-300 font-bold text-2xl shadow-xl transition-all ${
+                    isListenerSpeaking ? "border-emerald-400 scale-105 shadow-emerald-500/30" : "border-emerald-500/60 shadow-emerald-950/50"
+                  }`}>
                     {listenerShortName[0]}
                   </div>
                   <h3 className="font-semibold text-base text-slate-200">{listenerName}</h3>
 
                   <div className="flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-slate-800/60 border border-slate-700/50 text-xs text-emerald-400">
-                    <Volume2 className="size-3.5 animate-bounce" />
-                    <span>Listening actively • Non-judgmental space</span>
+                    <Volume2 className={`size-3.5 ${isListenerSpeaking ? "animate-pulse text-emerald-300" : "animate-bounce"}`} />
+                    <span>{isListenerSpeaking ? `${listenerShortName} is speaking...` : "Listening actively • Non-judgmental space"}</span>
                   </div>
 
                   {/* Audio Frequency Simulation Bars */}
-                  <div className="flex items-center gap-1 mt-4 h-5">
+                  <div className="flex items-center gap-1 mt-4 h-6">
                     {[16, 24, 12, 28, 20, 10, 26, 18, 14, 22].map((height, i) => (
                       <span
                         key={i}
-                        className="w-1 rounded-full bg-emerald-500/80 animate-pulse"
+                        className={`w-1 rounded-full transition-all duration-300 ${
+                          isListenerSpeaking ? "bg-emerald-400 animate-bounce" : "bg-emerald-500/80 animate-pulse"
+                        }`}
                         style={{
-                          height: `${height}px`,
-                          animationDelay: `${i * 120}ms`,
+                          height: isListenerSpeaking ? `${Math.min(32, height * 1.3)}px` : `${height}px`,
+                          animationDelay: `${i * 100}ms`,
                         }}
                       />
                     ))}
@@ -598,7 +677,7 @@ export function MemberSessionRoomModal({
                 </div>
               </div>
 
-              {/* Right Panel: Live Transcript & Private Chat (4 Cols) */}
+              {/* Right Panel: Live Spoken Dialogue & In-Call Chat (4 Cols) */}
               <div className="lg:col-span-4 border-l border-slate-800/80 bg-slate-900/60 flex flex-col p-4">
                 {/* Tab Switcher */}
                 <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-950/70 border border-slate-800 mb-3">
@@ -622,86 +701,122 @@ export function MemberSessionRoomModal({
                         : "text-slate-400 hover:text-slate-200"
                     }`}
                   >
-                    In-Call Chat ({messages.length})
+                    In-Call Chat ({dialogue.length})
                   </button>
                 </div>
 
-                {/* Tab 1: Live Spoken Transcript */}
+                {/* Sub-Header: Real-Time Status */}
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 text-xs">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                    <Radio className="size-3 text-emerald-400 animate-pulse" />
+                    {activeTab === "transcript" ? "Spoken Captions" : "Private Chat"}
+                  </span>
+                  <span className="text-[10px] text-emerald-400 font-mono">
+                    {isListenerSpeaking ? "Transcribing..." : "Real-Time"}
+                  </span>
+                </div>
+
+                {/* Tab 1: Live Spoken Captions Dialogue */}
                 {activeTab === "transcript" && (
-                  <div className="flex-1 flex flex-col min-h-0">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-800/60 text-xs">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                        <Radio className="size-3 text-emerald-400" />
-                        Spoken Captions
-                      </span>
-                      <span className="text-[10px] text-emerald-400 font-mono">Real-Time</span>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto space-y-3 py-3 pr-1 text-xs">
-                      <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/50">
-                        <span className="font-semibold text-emerald-400 block mb-0.5">{listenerShortName}</span>
-                        <p className="text-slate-300 leading-relaxed">
-                          "Hello! Thank you for connecting today. I'm here to listen without judgment. How are you feeling right now?"
-                        </p>
-                      </div>
-
-                      <div className="p-2.5 rounded-xl bg-slate-800/30 border border-slate-800">
-                        <span className="font-semibold text-slate-400 block mb-0.5">You (Member)</span>
-                        <p className="text-slate-200 leading-relaxed">
-                          "I have been feeling quite overwhelmed with work deadlines this week, and finding it hard to switch off in the evenings."
-                        </p>
-                      </div>
-
-                      <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/50">
-                        <span className="font-semibold text-emerald-400 block mb-0.5">{listenerShortName}</span>
-                        <p className="text-slate-300 leading-relaxed">
-                          "I completely understand. That constant mental pressure takes a heavy toll. Would you like to try a calming grounding breath, or simply talk it out?"
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Tab 2: Interactive Text Chat */}
-                {activeTab === "chat" && (
-                  <div className="flex-1 flex flex-col min-h-0">
-                    <div className="flex-1 overflow-y-auto space-y-2.5 py-2 pr-1 text-xs">
-                      {messages.map((m) => (
-                        <div
-                          key={m.id}
-                          className={`p-2.5 rounded-xl max-w-[85%] ${
-                            m.sender === "member"
-                              ? "ml-auto bg-[#236B54] text-white"
-                              : "bg-slate-800/80 border border-slate-700/60 text-slate-200"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2 mb-0.5 text-[10px] opacity-75">
-                            <span className="font-semibold">{m.senderName}</span>
-                            <span>{m.time}</span>
-                          </div>
-                          <p className="leading-relaxed text-xs">{m.text}</p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-800 flex items-center gap-1.5">
-                      <Input
-                        value={chatInput}
-                        onChange={(e) => setChatInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                        placeholder="Type private message..."
-                        className="h-9 bg-slate-950 border-slate-800 text-xs text-slate-200 rounded-xl focus-visible:ring-emerald-500"
-                      />
-                      <Button
-                        size="icon"
-                        onClick={handleSendMessage}
-                        className="size-9 rounded-xl bg-[#236B54] hover:bg-[#1b5542] text-white shrink-0"
+                  <div className="flex-1 overflow-y-auto space-y-3 py-3 pr-1 text-xs min-h-0">
+                    {dialogue.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className={`p-2.5 rounded-xl border leading-relaxed ${
+                          entry.speaker === "listener"
+                            ? "bg-slate-800/60 border-slate-700/50"
+                            : "bg-slate-800/30 border-slate-800"
+                        }`}
                       >
-                        <Send className="size-3.5" />
-                      </Button>
-                    </div>
+                        <div className="flex items-center justify-between mb-0.5 text-[10px]">
+                          <span className={`font-semibold ${entry.speaker === "listener" ? "text-emerald-400" : "text-slate-400"}`}>
+                            {entry.speakerName}
+                          </span>
+                          <span className="text-slate-500 font-mono">{entry.time}</span>
+                        </div>
+                        <p className={entry.speaker === "listener" ? "text-slate-200 italic" : "text-slate-300"}>
+                          "{entry.text}"
+                        </p>
+                      </div>
+                    ))}
+                    {isListenerSpeaking && (
+                      <div className="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-800/50 text-[11px] text-emerald-300 flex items-center gap-2 animate-pulse">
+                        <Volume2 className="size-3.5 text-emerald-400" />
+                        <span>{listenerShortName} is speaking...</span>
+                      </div>
+                    )}
+                    <div ref={dialogueEndRef} />
                   </div>
                 )}
+
+                {/* Tab 2: Interactive In-Call Chat */}
+                {activeTab === "chat" && (
+                  <div className="flex-1 overflow-y-auto space-y-2.5 py-3 pr-1 text-xs min-h-0">
+                    {dialogue.map((m) => (
+                      <div
+                        key={m.id}
+                        className={`p-2.5 rounded-xl max-w-[88%] ${
+                          m.speaker === "member"
+                            ? "ml-auto bg-[#236B54] text-white"
+                            : "bg-slate-800/80 border border-slate-700/60 text-slate-200"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-0.5 text-[10px] opacity-75">
+                          <span className="font-semibold">{m.speakerName}</span>
+                          <span className="font-mono">{m.time}</span>
+                        </div>
+                        <p className="leading-relaxed text-xs">{m.text}</p>
+                      </div>
+                    ))}
+                    {isListenerSpeaking && (
+                      <div className="p-2 rounded-xl bg-slate-800/80 text-[11px] text-emerald-400 flex items-center gap-1.5 w-fit">
+                        <span className="size-1.5 rounded-full bg-emerald-400 animate-ping" />
+                        <span>{listenerShortName} is typing...</span>
+                      </div>
+                    )}
+                    <div ref={chatEndRef} />
+                  </div>
+                )}
+
+                {/* Quick Prompts Carousel / Chips */}
+                <div className="pt-2 pb-1 border-t border-slate-800/60">
+                  <p className="text-[10px] text-slate-400 mb-1.5 font-medium flex items-center gap-1">
+                    <Sparkles className="size-3 text-emerald-400" />
+                    Suggested reflections:
+                  </p>
+                  <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    {QUICK_PROMPTS.map((prompt, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => handleUserSubmission(prompt.text, prompt.triggerBreathwork)}
+                        className="shrink-0 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/70 text-[11px] text-slate-300 hover:text-white transition-colors"
+                      >
+                        {prompt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Interactive Message Input Box */}
+                <div className="pt-2 flex items-center gap-1.5">
+                  <Input
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleUserSubmission(chatInput)}
+                    placeholder="Type private message or caption..."
+                    className="h-9 bg-slate-950 border-slate-800 text-xs text-slate-200 rounded-xl focus-visible:ring-emerald-500"
+                  />
+                  <Button
+                    size="icon"
+                    onClick={() => handleUserSubmission(chatInput)}
+                    disabled={!chatInput.trim()}
+                    className="size-9 rounded-xl bg-[#236B54] hover:bg-[#1b5542] text-white shrink-0 disabled:opacity-40"
+                    title="Send Message"
+                  >
+                    <Send className="size-3.5" />
+                  </Button>
+                </div>
 
                 {/* Safety Circuit Breaker Status */}
                 <div className="mt-3 p-2.5 rounded-xl border border-emerald-900/40 bg-emerald-950/20 text-[11px] text-emerald-300 flex items-center gap-2">
@@ -713,9 +828,9 @@ export function MemberSessionRoomModal({
           </>
         )}
 
-        {/* ═════════════════════════════════════════════════════════════════
+        {/* ════════════════════════════════════════════════════════════════
             STAGE 3: POST-CALL WELLBEING REFLECTION & DEBRIEF
-           ═════════════════════════════════════════════════════════════════ */}
+           ════════════════════════════════════════════════════════════════ */}
         {stage === "reflection" && (
           <div className="flex-1 flex flex-col p-8 overflow-y-auto bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950">
             <div className="max-w-2xl mx-auto w-full space-y-6">

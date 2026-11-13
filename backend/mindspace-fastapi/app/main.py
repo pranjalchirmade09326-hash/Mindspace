@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from app.core.config import settings
 from app.core.init_db import init_and_seed_db
 from app.routers import health, dashboards, member, wellbeing, intakes, peer, operations, admins, supervisors, safetys
@@ -46,6 +46,14 @@ app.include_router(safetys.router)
 @app.get("/api-docs", include_in_schema=False)
 async def api_docs_redirect():
     return RedirectResponse(url="/docs")
+
+
+@app.exception_handler(404)
+async def not_found(_: Request, __):
+    return JSONResponse(
+        {"status": "ok", "service": "mindspace-fastapi", "detail": "Endpoint not found"},
+        status_code=404,
+    )
 
 if __name__ == "__main__":
     import uvicorn

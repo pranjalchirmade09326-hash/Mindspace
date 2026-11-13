@@ -1,11 +1,11 @@
-# Contributing to drgodly
+# Contributing to MindSpace
 
 Thanks for your interest in contributing. This doc covers how to get the
 project running locally and the conventions we follow.
 
 ## Before you start: what this repo does and doesn't include
 
-drgodly is the Next.js frontend/orchestrator app. Several features depend
+MindSpace is the Next.js frontend/orchestrator app. Several features depend
 on external services that live in **separate repos**, not this one:
 
 - **IAM / BetterAuth server** — authentication (`BETTER_AUTH_URL`)
@@ -31,8 +31,8 @@ everything fits together.
 ### 1. Fork and clone
 
 ```bash
-git clone https://github.com/<your-username>/drgodly.git
-cd drgodly
+git clone https://github.com/<your-username>/mindspace.git
+cd mindspace
 ```
 
 If you're a maintainer working directly on this repo, just clone it

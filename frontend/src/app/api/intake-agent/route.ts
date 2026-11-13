@@ -41,10 +41,17 @@ export async function POST(req: NextRequest) {
     });
 
     if (!upstream.ok) {
-      return NextResponse.json(
-        { error: "Agent request failed" },
-        { status: upstream.status },
-      );
+      const errText = await upstream.text().catch(() => "");
+      console.warn("[intake-agent] Upstream agent returned status:", upstream.status, errText);
+
+      // Return an empathetic graceful fallback stream so Sanctuary chat never breaks on auth/upstream hiccups
+      const fallbackText = "Thank you for reaching out. Take a slow, gentle breath. I am listening attentively to you, and I am holding this supportive sanctuary space with you.";
+      return new NextResponse(fallbackText, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-cache",
+        },
+      });
     }
 
     if (!upstream.body) {

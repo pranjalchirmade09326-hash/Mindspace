@@ -1,8 +1,32 @@
 services:
+  mindspace-postgres:
+    image: postgres:16
+    container_name: mindspace-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mindspace}
+      POSTGRES_USER: ${POSTGRES_USER:-mindspace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev-only-change-me}
+    ports:
+      - "5433:5432"
+    volumes:
+      - mindspace-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - default
+      - mindspace-api_default
+
   mindspace-iam:
     build: .
     container_name: mindspace-iam
     restart: unless-stopped
+    depends_on:
+      mindspace-postgres:
+        condition: service_healthy
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: 5001
@@ -15,9 +39,17 @@ services:
       SEED_MINDSPACE_API: "false"
     ports:
       - "5001:5001"
+    volumes:
+      - ./app:/app/app:ro
     networks:
+      - default
       - mindspace-api_default
 
+volumes:
+  mindspace-postgres-data:
+    name: mindspace-api_mindspace-postgres-data
+
 networks:
+  default:
   mindspace-api_default:
-    external: true
+    name: mindspace-api_default

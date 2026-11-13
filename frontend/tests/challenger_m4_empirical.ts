@@ -325,7 +325,7 @@ async function runAll() {
       const { errors, warnings } = withConsoleTrap(() => {
         html = ReactDOMServer.renderToString(
           React.createElement(
-            NextIntlClientProvider,
+            NextIntlClientProvider as any,
             { locale: "en", messages: {} },
             React.createElement(DashboardOverview, {
               doctorName: tc.input,

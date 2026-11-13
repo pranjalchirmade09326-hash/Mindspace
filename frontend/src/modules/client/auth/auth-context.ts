@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import type { MemberProfile, ListenerProfile } from "@prisma/client";
+import type { MemberProfile, ListenerProfile } from "../../../../prisma/generated/prisma/models";
 
 export type UserRole = "member" | "listener" | "admin";
 

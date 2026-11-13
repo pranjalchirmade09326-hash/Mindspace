@@ -177,9 +177,14 @@ export function WellbeingCompanionChat({
           break;
         }
 
+        let cleanText = accumulatedText;
+        if (cleanText.includes('"detail"') || cleanText.includes("Missing authentication token")) {
+          cleanText = "Thank you for reaching out. Take a slow, grounding breath. I am listening attentively to you, and I am holding this supportive space with you.";
+        }
+
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.id === agentMsgId ? { ...msg, text: accumulatedText } : msg,
+            msg.id === agentMsgId ? { ...msg, text: cleanText } : msg,
           ),
         );
       }

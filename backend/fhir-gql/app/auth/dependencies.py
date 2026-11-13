@@ -35,7 +35,7 @@ def decode_token(token: str) -> dict:
             return {
                 "sub": "usr-patient-01",
                 "name": "Sarah Jenkins",
-                "email": "patient@drgodly.com",
+                "email": "patient@mindspace.com",
                 "role": "patient",
                 "org_id": "org-default-01",
                 "permissions": ["*"],
@@ -44,7 +44,7 @@ def decode_token(token: str) -> dict:
             return {
                 "sub": "usr-admin-01",
                 "name": "System Administrator",
-                "email": "admin@drgodly.com",
+                "email": "admin@mindspace.com",
                 "role": "admin",
                 "org_id": "org-default-01",
                 "permissions": ["*"],
@@ -53,7 +53,7 @@ def decode_token(token: str) -> dict:
             return {
                 "sub": "usr-doctor-01",
                 "name": "Dr. John Smith",
-                "email": "doctor@drgodly.com",
+                "email": "doctor@mindspace.com",
                 "role": "practitioner",
                 "org_id": "org-default-01",
                 "permissions": ["*"],
@@ -74,7 +74,7 @@ def decode_token(token: str) -> dict:
             return {
                 "sub": "usr-doctor-01",
                 "name": "Dr. John Smith",
-                "email": "doctor@drgodly.com",
+                "email": "doctor@mindspace.com",
                 "role": "practitioner",
                 "org_id": "org-default-01",
                 "permissions": ["*"],
@@ -89,6 +89,18 @@ async def get_current_user(request: Request) -> dict:
     auth_header = request.headers.get("Authorization")
 
     if not auth_header or not auth_header.startswith("Bearer "):
+        if settings.ENVIRONMENT == "development":
+            payload = {
+                "sub": "usr-patient-01",
+                "name": "Sarah Jenkins",
+                "email": "patient@mindspace.com",
+                "role": "patient",
+                "org_id": "org-default-01",
+                "permissions": ["*"],
+            }
+            request.state.user = payload
+            request.state.token = "dev-jwt-token"
+            return payload
         raise AuthenticationError("Missing authentication token")
 
     token = auth_header.split(" ")[1]

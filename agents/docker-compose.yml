@@ -1,10 +1,10 @@
 services:
-  previsit-agent:
+  mindspace-agents:
     image: kipla1412/finalvoiceagent:latest
     # image: kipla1412/checkagent:latest
-    container_name: drgodly-agents-new
+    container_name: mindspace-agents
     ports:
-      - "8018:8000"
+      - "8018:8018"
     environment:
       API_KEY: ${API_KEY:?Set API_KEY in agents/.env}
       SARVAM_API_KEY: ${SARVAM_API_KEY:?Set SARVAM_API_KEY in agents/.env}

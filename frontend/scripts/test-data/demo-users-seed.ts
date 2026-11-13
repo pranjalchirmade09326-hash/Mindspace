@@ -13,10 +13,14 @@
  *   Admin: admin@demo.com / demo123456
  */
 
-import { PrismaClient } from "@prisma/client";
+import { Pool } from "pg";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "../../prisma/generated/prisma/client";
 import * as crypto from "node:crypto";
 
-const prisma = new PrismaClient();
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 // bcrypt-like hash function (simplified for demo)
 // In production, use proper bcrypt: `bcrypt.hash(password, 10)`

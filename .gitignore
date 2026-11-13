@@ -25,6 +25,7 @@ coverage/
 .coverage
 htmlcov/
 
+
 # Logs
 *.log
 npm-debug.log*
@@ -57,4 +58,6 @@ Thumbs.db
 deploy/
 docs/
 
-
+#start and stop bat
+START-ALL.bat
+STOP-ALL.bat

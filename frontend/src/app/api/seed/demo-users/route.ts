@@ -5,11 +5,9 @@
  * Seeds demo users into the database for quick testing
  */
 
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/db";
 import * as crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-
-const prisma = new PrismaClient();
 
 // Simple hash function (for demo only - use bcrypt in production)
 function hashPassword(password: string): string {
