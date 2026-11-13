@@ -57,7 +57,4 @@ Thumbs.db
 .agents/
 deploy/
 docs/
-
-#start and stop bat
-START-ALL.bat
-STOP-ALL.bat
+test/
