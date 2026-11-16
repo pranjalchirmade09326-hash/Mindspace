@@ -10,6 +10,11 @@ def test_encryption_roundtrip():
     decrypted = decrypt_content(packed, key_ver)
     assert decrypted == original_text
 
+    # Empty plaintext roundtrip verification
+    empty_packed, empty_ver = encrypt_content("")
+    assert len(empty_packed) == 28
+    assert decrypt_content(empty_packed, empty_ver) == ""
+
 def test_decryption_invalid():
     assert decrypt_content(None, "v1") is None
     assert decrypt_content(b"too_short", "v1") is None
@@ -20,6 +25,6 @@ def test_encryption_keys():
     assert len(keys[CURRENT_KEY_VERSION]) == 32
 
 def test_token_decoding_logic():
-    token = jwt.encode({"sub": "usr-custom-member-42"}, "secret", algorithm="HS256")
+    token = jwt.encode({"sub": "usr-custom-member-42"}, "secret_key_at_least_32_bytes_long_mindspace_secret", algorithm="HS256")
     unverified = jwt.decode(token, options={"verify_signature": False})
     assert unverified.get("sub") == "usr-custom-member-42"

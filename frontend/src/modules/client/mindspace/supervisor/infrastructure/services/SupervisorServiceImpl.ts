@@ -13,13 +13,13 @@ import { GetSupervisorStatsUseCase } from '../../application/usecases/GetSupervi
 
 export class SupervisorServiceImpl implements ISupervisorService {
   private repository: SupervisorRepository;
-  private getProfileUseCase: GetSupervisorProfileUseCase;
-  private getStatsUseCase: GetSupervisorStatsUseCase;
+  private _profileUseCase: GetSupervisorProfileUseCase;
+  private _statsUseCase: GetSupervisorStatsUseCase;
 
   constructor(repository?: SupervisorRepository) {
     this.repository = repository || new SupervisorRepository();
-    this.getProfileUseCase = new GetSupervisorProfileUseCase(this);
-    this.getStatsUseCase = new GetSupervisorStatsUseCase(this);
+    this._profileUseCase = new GetSupervisorProfileUseCase(this);
+    this._statsUseCase = new GetSupervisorStatsUseCase(this);
   }
 
   setAuthToken(token: string): void {
@@ -68,10 +68,10 @@ export class SupervisorServiceImpl implements ISupervisorService {
   }
 
   getProfileUseCase(): GetSupervisorProfileUseCase {
-    return this.getProfileUseCase;
+    return this._profileUseCase;
   }
 
   getStatsUseCase(): GetSupervisorStatsUseCase {
-    return this.getStatsUseCase;
+    return this._statsUseCase;
   }
 }

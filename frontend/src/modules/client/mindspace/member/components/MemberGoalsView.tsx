@@ -107,7 +107,7 @@ export function MemberGoalsView() {
 
   const handleCheckin = async (goalId: string) => {
     try {
-      await fetch(`http://localhost:8080/api/v1/wellbeing/goals/${goalId}/checkins`, {
+      await fetch(`/api/mindspace/member/goals/${goalId}/checkins`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

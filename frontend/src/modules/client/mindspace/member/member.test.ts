@@ -7,13 +7,13 @@
  * Layer: Test
  */
 
-import { MemberProfile } from "../domain/entities/MemberProfile";
-import { DashboardStats } from "../domain/entities/DashboardStats";
-import { GetMemberProfileUseCase } from "../application/usecases/GetMemberProfileUseCase";
-import { GetDashboardStatsUseCase } from "../application/usecases/GetDashboardStatsUseCase";
-import { MemberRepository } from "../infrastructure/repositories/MemberRepository";
-import { MemberServiceImpl } from "../infrastructure/services/MemberServiceImpl";
-import { IMemberService } from "../domain/interfaces/IMemberService";
+import { MemberProfile } from "./domain/entities/MemberProfile";
+import { DashboardStats } from "./domain/entities/DashboardStats";
+import { GetMemberProfileUseCase } from "./application/usecases/GetMemberProfileUseCase";
+import { GetDashboardStatsUseCase } from "./application/usecases/GetDashboardStatsUseCase";
+import { MemberRepository } from "./infrastructure/repositories/MemberRepository";
+import { MemberServiceImpl } from "./infrastructure/services/MemberServiceImpl";
+import { IMemberService } from "./domain/interfaces/IMemberService";
 
 /**
  * Mock Member Service for testing

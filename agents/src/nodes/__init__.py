@@ -1,4 +1,1 @@
-"""
-MindSpace Specialized Subagent Nodes.
-"""
-
+"""MindSpace Agents nodes package."""

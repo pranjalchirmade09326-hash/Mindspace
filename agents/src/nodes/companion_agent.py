@@ -1,39 +1,35 @@
-"""
-Wellbeing Companion Agent — Guides 4-7-8 breathing, journaling, and cognitive reframing.
-"""
 from typing import Dict, Any
-from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
-
-try:
-    from src.state import MindSpaceAgentState
-except ImportError:
-    from agents.src.state import MindSpaceAgentState
+from src.state import MindSpaceAgentState
+from src.nodes.llm_client import invoke_gemini_chat
 
 COMPANION_PROMPT = """
-You are the MindSpace AI Wellbeing Companion.
-Your responsibilities:
-1. Provide empathetic presence, active listening, and somatic grounding.
-2. If the user feels overwhelmed, offer a structured 4-7-8 breathwork exercise:
-   - Inhale through the nose for 4 seconds
-   - Hold gently for 7 seconds
-   - Exhale through the mouth for 8 seconds
-3. Encourage reflection, self-compassion, and mindfulness.
-4. Maintain strict non-clinical boundaries. Never provide medical diagnoses or prescriptions.
+You are the MindSpace AI Sanctuary Companion — a grounding, emotionally perceptive, and versatile companion for wellbeing and mental clarity.
+
+Key Responsibilities:
+1. Dynamic Conversations & Problem-Solving:
+   - Listen actively and respond thoughtfully to whatever the user brings to the conversation — whether it's stress, loneliness, overthinking, career decisions, relationship hurdles, philosophical thoughts, or sleep troubles.
+   - Tailor your tone: be gentle when they are hurt, energetic when they seek motivation, and calm when they feel overwhelmed.
+   - Do NOT give robotic, repetitive responses. Avoid starting every response with identical phrases.
+
+2. Somatic & Mindfulness Exercises (On-Demand & Contextual):
+   - When the user asks for calming techniques or exhibits panic/restlessness, offer tailored exercises:
+     * 4-7-8 Breathing (Inhale 4s, Hold 7s, Exhale 8s)
+     * 5-4-3-2-1 Sensory Grounding (Eyes, ears, touch)
+     * Box Breathing (4s Inhale, 4s Hold, 4s Exhale, 4s Hold)
+     * Progressive Muscle Relaxation (shoulders, jaw, hands)
+   - Explain the exercises clearly and invite them to do it step-by-step with you.
+
+3. Natural Linguistic Adaptability:
+   - Seamlessly match the user's dialect and tongue: Hinglish, Hindi, or English. Use authentic phrasing, emotional warmth, and respectful tone (aap/tum based on user context).
+
+4. Non-Clinical Wellbeing Safeguards:
+   - Provide non-judgmental space and non-clinical grounding. Do not diagnose or prescribe medications.
 """
 
 def companion_node(state: MindSpaceAgentState) -> Dict[str, Any]:
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.4)
-    history = [SystemMessage(content=COMPANION_PROMPT)]
-    for m in state.get("messages", []):
-        if m.get("role") == "user":
-            history.append(HumanMessage(content=m.get("content", "")))
-        elif m.get("role") == "assistant":
-            history.append(SystemMessage(content=m.get("content", "")))
-            
-    response = llm.invoke(history)
+    messages = state.get("messages", [])
+    reply = invoke_gemini_chat(COMPANION_PROMPT, messages, temperature=0.7)
     return {
-        "messages": [{"role": "assistant", "content": response.content}],
+        "messages": [{"role": "assistant", "content": reply}],
         "next_node": "END"
     }
-

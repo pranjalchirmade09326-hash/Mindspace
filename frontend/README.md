@@ -1,11 +1,11 @@
 # MindSpace — Frontend Application
 
-[![Stack: Next.js 15](https://img.shields.io/badge/Framework-Next.js%2015%20(App%20Router)-black)](https://nextjs.org/)
+[![Stack: Next.js 16](https://img.shields.io/badge/Framework-Next.js%2016%20(App%20Router)-black)](https://nextjs.org/)
 [![UI: React 19](https://img.shields.io/badge/UI-React%2019%20%7C%20Tailwind%20CSS-blue)](https://react.dev/)
 [![Auth: Better Auth](https://img.shields.io/badge/Auth-Better%20Auth-purple)](https://better-auth.com/)
 [![Realtime: LiveKit & Vapi](https://img.shields.io/badge/Voice-LiveKit%20%26%20Vapi-red)](https://livekit.io/)
 
-The modern, responsive web frontend for the **MindSpace** peer-support and emotional wellbeing platform. Built on **Next.js 15 App Router** and **React 19**, it provides accessible workspaces for members, listeners, supervisors, and platform administrators.
+The modern, responsive web frontend for the **MindSpace** peer-support and emotional wellbeing platform. Built on **Next.js 16 (16.2.4) App Router** and **React 19 (19.2.4)**, it provides accessible workspaces for members, listeners, supervisors, and platform administrators.
 
 ---
 
@@ -15,18 +15,35 @@ The frontend follows a domain-driven Clean Architecture structure inside `src/`:
 
 ```
 frontend/src/
-├── app/                        # Delivery Layer: Next.js 15 App Router pages & API routes
-│   ├── (auth)/                 # Authentication flows (Sign in, Sign up, Onboarding)
-│   ├── (client)/               # Member workspace & wellbeing tools
-│   ├── (listener)/             # Volunteer listener hub & active chats
-│   └── (admin)/                # Operations, safety sentinel & supervisor console
+├── app/                        # Delivery Layer: Next.js 16 App Router pages & API routes
+│   ├── api/                    # Serverless API routes (auth, workflow, speech, status)
+│   └── [locale]/               # Internationalized localized routing (/en, etc.)
+│       ├── (auth)/             # Authentication flows (login, signup, forgot-password)
+│       ├── (marketing)/        # Public landing pages & educational content
+│       └── (mindspace)/        # Mindspace Core Role Dashboards
+│           └── mindspace/
+│               ├── member/     # Member Wellbeing Sanctuary (consultation, goals, journal, mood)
+│               ├── listener/   # Volunteer Listener Hub (members, profile)
+│               ├── listener-supervisor/ # Supervisor Sanctuary (conduct-reports, listeners, training-reviews)
+│               ├── safety-operations/   # Emergency crisis triage & safety incident desk
+│               └── platform-administrator/ # Platform admin, zero-knowledge controls & audit logs
 ├── components/                 # Presentation Layer: Reusable atomic design components
 │   ├── ui/                     # Base design system widgets (buttons, modals, forms)
 │   └── common/                 # Layouts, navigation headers, and footers
 ├── modules/                    # Application / Use Case Layer: Feature-driven domain modules
-│   ├── client/                 # Member workflows: mood trackers, private journal, intake
-│   ├── listener/               # Listener tools: offer acceptance, active peer chat
-│   └── admin/                  # Administrative tools: safety cases, listener roster review
+│   ├── client/mindspace/       # Client-side domain modules:
+│   │   ├── member/             # Member workflows: mood trackers, encrypted journal, goals
+│   │   ├── listener/           # Listener tools: offer acceptance, active peer chat, SOAP
+│   │   ├── supervisor/         # Supervisor tools: pod roster, conduct audits, eligibility
+│   │   ├── safety/             # Safety triage, crisis escalation desk, hotline cards
+│   │   ├── admin/              # Admin controls: zero-knowledge mode, telemetry
+│   │   ├── companion/          # Voice & conversational grounding companion
+│   │   └── intake/             # Conversational intake & screener questionnaires
+│   └── server/mindspace/       # Server-side integration modules:
+│       ├── api-client.ts       # Backend API client communicating with Port 8080
+│       ├── member-dashboard.ts # Server-side data fetching for member sanctuary
+│       ├── role-dashboards.ts  # Server-side data aggregators for role dashboards
+│       └── role-guard.ts       # RBAC role verification and authorization guards
 ├── hooks/                      # Interface Adapters: TanStack React Query & custom state hooks
 ├── lib/                        # Infrastructure Layer: API client, Better Auth client, helpers
 ├── providers/                  # Application Contexts: Theme, Auth, QueryClient, Toast
@@ -35,19 +52,26 @@ frontend/src/
 
 ---
 
-## 🚀 Key User Experiences
+## 🚀 Key User Experiences (5 Role Workspaces)
 
-1. **Member Workspace**:
+1. **Member Workspace (`/mindspace/member`)**:
    - **AI Companion & Grounding**: Interactive voice & chat wellbeing companion.
    - **Private Mood Journal**: Mood check-ins, personal reflection prompts, and emotional trajectory graphs.
    - **Peer Support Requests**: Connect with trained listeners based on shared topics and availability.
-2. **Listener Hub**:
-   - **Match Offers**: View, accept, or decline pending member match requests.
-   - **Secure Peer Chat**: Real-time supportive conversations with members.
-   - **Availability Management**: Schedule active listening hours and manage conversation capacity.
-3. **Supervisor & Safety Desks**:
-   - **Review Console**: Listener onboarding status, training records, and conduct reports.
-   - **Safety Sentinel**: Immediate intervention desk for high-risk member crisis escalations.
+   - **Consultation Room**: Live audio/video peer sessions with in-call somatic breathing pacer (4-7-8).
+2. **Listener Hub (`/mindspace/listener`)**:
+   - **Match Offers & Live Queue**: View, accept, or decline pending member match requests.
+   - **Secure Peer Chat**: Real-time supportive conversations with members and post-session SOAP documentation.
+   - **Cooldown Breather**: Mandatory restorative pause between peer support encounters.
+3. **Supervisor Sanctuary (`/mindspace/listener-supervisor`)**:
+   - **Pod Roster Oversight**: Volunteer readiness, workload capacity, and eligibility toggles.
+   - **Conduct & Boundary Audits**: Review member-reported boundary concerns and record resolutions.
+   - **Training Reviews**: Verify CEU completions and sign off Safeguarding V2 credentials.
+4. **Safety Operations Desk (`/mindspace/safety-operations`)**:
+   - **Crisis Escalation Desk**: Human-led crisis triage for urgent interventions.
+   - **Emergency Routing**: Direct connections to Tele-MANAS (+91 9999 666 555), AASRA, and 112/988 hotlines.
+5. **Platform Administration (`/mindspace/platform-administrator`)**:
+   - **Governance & Zero-Knowledge Mode**: Cryptographic key rotation tracking, KMS metrics, and RBAC directory.
 
 ---
 
@@ -57,6 +81,7 @@ frontend/src/
 - **Node.js** `>= 22`
 - **pnpm** `>= 9`
 - Running Backend API (`http://localhost:8080`)
+- Running IAM Service (`http://localhost:5001`)
 
 ### Installation & Run
 
@@ -69,7 +94,7 @@ frontend/src/
    ```bash
    cp .env.example .env
    ```
-   *Ensure `NEXT_PUBLIC_API_URL` points to your running `mindspace-api` (`http://localhost:8080`).*
+   *Ensure `NEXT_PUBLIC_API_URL` points to `mindspace-fastapi` (`http://localhost:8080`).*
 
 3. **Generate Prisma client:**
    ```bash
@@ -81,7 +106,7 @@ frontend/src/
    pnpm dev
    ```
 
-5. Open [http://localhost:4000](http://localhost:4000) in your browser.
+5. Open [http://localhost:4000/en/mindspace/member](http://localhost:4000/en/mindspace/member) in your browser.
 
 ---
 
@@ -99,5 +124,5 @@ pnpm build
 
 ## 🔒 Security & Data Boundaries
 
-- All sensitive member interactions are protected by JWT tokens validated against the MindSpace identity provider.
+- All sensitive member interactions are protected by JWT tokens validated against the MindSpace identity provider (Port 5001).
 - Audio streams are ephemeral via LiveKit / Vapi; no raw audio is retained on the client or sent to persistent browser storage.

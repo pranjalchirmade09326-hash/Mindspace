@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -22,8 +22,7 @@ class AdminStatsResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AdminResponse(BaseModel):
@@ -39,8 +38,7 @@ class AdminResponse(BaseModel):
     updated_at: datetime
     stats: Optional[AdminStatsResponse] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AdminCreatedResponse(BaseModel):
@@ -51,8 +49,7 @@ class AdminCreatedResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AdminCreateRequest(BaseModel):
@@ -88,8 +85,7 @@ class AdminSearchRequest(BaseModel):
     department: Optional[str] = None
     role: Optional[AdminRoleEnum] = None
     is_active: Optional[bool] = None
-    limit: int = 50
-    offset: int = 0
+    limit: int = Field(default=50, ge=1, le=500)
+    offset: int = Field(default=0, ge=0)
 
-    class Config:
-        validate_default = True
+    model_config = ConfigDict(validate_default=True)

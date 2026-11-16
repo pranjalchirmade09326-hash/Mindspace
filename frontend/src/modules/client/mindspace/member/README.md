@@ -42,7 +42,7 @@ src/modules/client/mindspace/member/
 │
 ├── ARCHITECTURE.md                  ✓ Full documentation
 ├── member.test.ts                   ✓ Integration tests
-└── App Route: src/app/[locale]/(apps)/mindspace/member/page.tsx ✓
+└── App Route: src/app/[locale]/(mindspace)/mindspace/member/page.tsx ✓
 ```
 
 ## 🚀 Quick Start

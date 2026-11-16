@@ -1,4 +1,1 @@
-"""
-MindSpace Interface Adapter Tools (REST / MCP).
-"""
-
+"""MindSpace Agents tools package."""

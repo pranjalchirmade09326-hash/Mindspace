@@ -17,8 +17,14 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  let body: any = {};
   try {
-    const body = await req.json();
+    body = await req.json();
+  } catch {
+    body = {};
+  }
+
+  try {
     const { request } = await createMindspaceApiClient();
     const data = await request("/api/v1/wellbeing/goals", {
       method: "POST",
@@ -26,7 +32,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(data);
   } catch (error: any) {
-    const body = await req.clone().json().catch(() => ({}));
     return NextResponse.json({
       id: `g-${Date.now()}`,
       goal: body.goal || "Personal Wellbeing Goal",

@@ -44,6 +44,8 @@ import {
   Target,
   Trash2,
   TrendingUp,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -287,6 +289,177 @@ export function MemberDashboardView({
 
   const threadEndRef = useRef<HTMLDivElement>(null);
 
+  // ── Voice Input (Speech-to-Text) & Output (Text-to-Speech) ──
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [autoVoiceReply, setAutoVoiceReply] = useState(false);
+  const isVoiceInputRef = useRef(false);
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const recognitionRef = useRef<any>(null);
+
+  const toggleVoiceRecording = () => {
+    if (typeof window === "undefined") return;
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      toast.error("Voice input is not supported in this browser. Please use Chrome or Edge.");
+      return;
+    }
+
+    if (isRecordingVoice) {
+      try {
+        recognitionRef.current?.stop();
+      } catch {}
+      setIsRecordingVoice(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = "hi-IN";
+
+      recognition.onstart = () => {
+        setIsRecordingVoice(true);
+        isVoiceInputRef.current = true;
+        toast.info("Listening... speak your mind!");
+      };
+
+      recognition.onresult = (event: any) => {
+        let transcript = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        if (transcript) {
+          isVoiceInputRef.current = true;
+          setChatInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn("Speech recognition error:", event.error);
+        setIsRecordingVoice(false);
+      };
+
+      recognition.onend = () => {
+        setIsRecordingVoice(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error("SpeechRecognition start error:", err);
+      setIsRecordingVoice(false);
+    }
+  };
+
+  const playSpeechAudio = async (text: string, messageId: string) => {
+    if (typeof window === "undefined") return;
+
+    // 1. If this message is already playing, stop it
+    if (speakingMessageId === messageId) {
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause();
+        audioPlayerRef.current = null;
+      }
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    // Stop any in-progress audio
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause();
+      audioPlayerRef.current = null;
+    }
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+
+    setSpeakingMessageId(messageId);
+
+    // 2. High-Fidelity Natural Voice via Sarvam AI (Direct 8018 or Next.js Proxy)
+    try {
+      const cleanText = text.replace(/[*_#`]/g, "").trim().slice(0, 480);
+      const voicePayload = JSON.stringify({
+        text: cleanText,
+        target_language_code: "hi-IN",
+        speaker: "priya"
+      });
+
+      // Try direct agent service endpoint on port 8018 first (CORS enabled, 0ms proxy latency)
+      let res: Response | null = null;
+      try {
+        res = await fetch("http://localhost:8018/api/v1/voice/synthesize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: voicePayload
+        });
+      } catch {
+        // Fallback to Next.js API route if direct port 8018 fetch fails
+        res = await fetch("/api/voice-synthesize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: voicePayload
+        });
+      }
+
+      if (res && res.ok) {
+        const data = await res.json();
+        if (data.audio_base64) {
+          const audio = new Audio("data:audio/wav;base64," + data.audio_base64);
+          audioPlayerRef.current = audio;
+          audio.onended = () => {
+            setSpeakingMessageId(null);
+            audioPlayerRef.current = null;
+          };
+          audio.onerror = () => {
+            setSpeakingMessageId(null);
+            audioPlayerRef.current = null;
+          };
+          await audio.play();
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Sarvam AI voice error, falling back to browser synthesis:", e);
+    }
+
+    // 3. Fallback: Browser Web Speech API with Chrome unpause fix
+    if (window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.resume();
+        const cleanText = text.replace(/[*_#`]/g, "").trim();
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find(
+          (v) => v.lang.includes("hi") || v.lang.includes("IN")
+        ) || voices[0];
+        if (preferredVoice) {
+          utterance.voice = preferredVoice;
+        }
+
+        utterance.onend = () => setSpeakingMessageId(null);
+        utterance.onerror = () => setSpeakingMessageId(null);
+
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.error("SpeechSynthesis error:", err);
+        setSpeakingMessageId(null);
+      }
+    } else {
+      setSpeakingMessageId(null);
+    }
+  };
+
   useEffect(() => {
     if (activeCenterView === "chat") {
       threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -308,6 +481,9 @@ export function MemberDashboardView({
   const handleSendChatMessage = async (presetText?: string) => {
     const textToSend = (presetText || chatInput).trim();
     if (!textToSend || isStreaming) return;
+
+    const triggeredByVoice = isVoiceInputRef.current;
+    isVoiceInputRef.current = false;
 
     if (!presetText) {
       setChatInput("");
@@ -388,12 +564,19 @@ export function MemberDashboardView({
             prev.map((m) => (m.id === agentMsgId ? { ...m, text: accumulated } : m))
           );
         }
+
+        if ((triggeredByVoice || autoVoiceReply) && accumulated.trim()) {
+          playSpeechAudio(accumulated, agentMsgId);
+        }
       } else {
         const data = await res.json();
         const reply = data.reply || data.response || "I hear you, and I am holding this peaceful space with you.";
         setChatMessages((prev) =>
           prev.map((m) => (m.id === agentMsgId ? { ...m, text: reply } : m))
         );
+        if ((triggeredByVoice || autoVoiceReply) && reply.trim()) {
+          playSpeechAudio(reply, agentMsgId);
+        }
       }
     } catch {
       // High-quality contextual fallback
@@ -412,6 +595,9 @@ export function MemberDashboardView({
       setChatMessages((prev) =>
         prev.map((m) => (m.id === agentMsgId ? { ...m, text: fallbackReply } : m))
       );
+      if ((triggeredByVoice || autoVoiceReply) && fallbackReply.trim()) {
+        playSpeechAudio(fallbackReply, agentMsgId);
+      }
     } finally {
       setIsStreaming(false);
     }
@@ -869,9 +1055,29 @@ export function MemberDashboardView({
                       }`}
                     >
                       <div className="whitespace-pre-wrap">{msg.text}</div>
-                      <span className={`block text-[10px] mt-1.5 ${msg.sender === "user" ? "text-emerald-200" : "text-muted-foreground"}`}>
-                        {msg.timestamp}
-                      </span>
+                      <div className={`flex items-center justify-between text-[10px] mt-1.5 ${msg.sender === "user" ? "text-emerald-200" : "text-muted-foreground"}`}>
+                        <span>{msg.timestamp}</span>
+                        {msg.sender === "companion" && msg.text && (
+                          <button
+                            type="button"
+                            onClick={() => playSpeechAudio(msg.text, msg.id)}
+                            title={speakingMessageId === msg.id ? "Stop voice audio" : "Listen to audio response"}
+                            className="p-1 rounded-md hover:bg-muted/80 transition-colors opacity-70 hover:opacity-100 flex items-center gap-1 ml-2"
+                          >
+                            {speakingMessageId === msg.id ? (
+                              <>
+                                <VolumeX className="size-3 text-red-500 animate-pulse" />
+                                <span className="text-[9px] text-red-500 font-medium">Stop</span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 className="size-3 text-emerald-600 dark:text-emerald-400" />
+                                <span className="text-[9px]">Listen</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -891,13 +1097,45 @@ export function MemberDashboardView({
               {/* Pinned Floating Bottom Input Bar (ChatGPT Style) */}
               <div className="shrink-0 pt-3">
                 <div className="rounded-3xl border border-border/80 bg-background/95 shadow-md p-2 flex items-center gap-2 focus-within:border-emerald-500 transition-all">
+                  <button
+                    type="button"
+                    onClick={toggleVoiceRecording}
+                    title={isRecordingVoice ? "Stop voice listening" : "Click to speak (Voice-to-Text)"}
+                    className={`size-9 rounded-2xl flex items-center justify-center shrink-0 transition-all ${
+                      isRecordingVoice
+                        ? "bg-red-500 text-white animate-pulse shadow-md"
+                        : "bg-muted text-muted-foreground hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                    }`}
+                  >
+                    <Mic className={`size-4 ${isRecordingVoice ? "animate-bounce" : ""}`} />
+                  </button>
+
                   <Link
                     href="/mindspace/member/voice"
-                    title="Start Voice Intake / Speech Reflection"
+                    title="Open Live Voice Call Room"
                     className="size-9 rounded-2xl bg-muted text-muted-foreground hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center justify-center shrink-0 transition-colors"
                   >
-                    <Mic className="size-4" />
+                    <Headphones className="size-4" />
                   </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAutoVoiceReply((prev) => {
+                        const next = !prev;
+                        toast.info(next ? "Voice Auto-Read ON: Companion will speak replies" : "Voice Auto-Read OFF");
+                        return next;
+                      });
+                    }}
+                    title={autoVoiceReply ? "Voice reply active (Click to disable auto-speaking)" : "Click to enable auto-spoken voice replies"}
+                    className={`size-9 rounded-2xl flex items-center justify-center shrink-0 transition-all ${
+                      autoVoiceReply
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : "bg-muted text-muted-foreground hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                    }`}
+                  >
+                    {autoVoiceReply ? <Volume2 className="size-4 animate-pulse" /> : <VolumeX className="size-4" />}
+                  </button>
 
                   <Input
                     value={chatInput}

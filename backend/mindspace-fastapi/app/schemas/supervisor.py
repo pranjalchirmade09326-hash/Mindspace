@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -14,8 +14,7 @@ class SupervisorStatsResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SupervisorResponse(BaseModel):
@@ -34,8 +33,7 @@ class SupervisorResponse(BaseModel):
     updated_at: datetime
     stats: Optional[SupervisorStatsResponse] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SupervisorCreatedResponse(BaseModel):
@@ -47,8 +45,7 @@ class SupervisorCreatedResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SupervisorCreateRequest(BaseModel):
@@ -89,8 +86,7 @@ class SupervisorSearchRequest(BaseModel):
     department: Optional[str] = None
     experience_level: Optional[str] = None
     is_active: Optional[bool] = None
-    limit: int = 50
-    offset: int = 0
+    limit: int = Field(default=50, ge=1, le=500)
+    offset: int = Field(default=0, ge=0)
 
-    class Config:
-        validate_default = True
+    model_config = ConfigDict(validate_default=True)

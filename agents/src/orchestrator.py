@@ -2,20 +2,21 @@
 LangGraph Central Orchestrator State Graph.
 Connects all subagent nodes with conditional state routing.
 """
+import sys
+from pathlib import Path
+
+# Ensure agents directory is in sys.path
+agents_dir = str(Path(__file__).resolve().parent.parent)
+if agents_dir not in sys.path:
+    sys.path.insert(0, agents_dir)
+
 from langgraph.graph import StateGraph, END
 
-try:
-    from src.state import MindSpaceAgentState
-    from src.nodes.safety_sentinel import safety_sentinel_node
-    from src.nodes.intake_agent import intake_node
-    from src.nodes.companion_agent import companion_node
-    from src.nodes.matcher_agent import matcher_node
-except ImportError:
-    from agents.src.state import MindSpaceAgentState
-    from agents.src.nodes.safety_sentinel import safety_sentinel_node
-    from agents.src.nodes.intake_agent import intake_node
-    from agents.src.nodes.companion_agent import companion_node
-    from agents.src.nodes.matcher_agent import matcher_node
+from src.state import MindSpaceAgentState
+from src.nodes.safety_sentinel import safety_sentinel_node
+from src.nodes.intake_agent import intake_node
+from src.nodes.companion_agent import companion_node
+from src.nodes.matcher_agent import matcher_node
 
 def route_next_node(state: MindSpaceAgentState) -> str:
     """Evaluates state conditions to determine the next subagent node."""
@@ -30,9 +31,9 @@ def route_next_node(state: MindSpaceAgentState) -> str:
             break
             
     # 2. Stepped-care triage routing
-    if any(k in last_user_text for k in ["talk to human", "peer listener", "real person", "call someone"]):
+    if any(k in last_user_text for k in ["talk to human", "peer listener", "real person", "call someone", "volunteer"]):
         return "peer_matcher"
-    elif any(k in last_user_text for k in ["breathe", "grounding", "journal", "reflection", "calm", "anxious"]):
+    elif any(k in last_user_text for k in ["breathe", "grounding", "journal", "reflection", "calm", "anxious", "overwhelm"]):
         return "companion"
     else:
         return "intake"
@@ -68,4 +69,3 @@ graph_builder.add_edge("peer_matcher", END)
 
 # Compile into an executable runtime app
 orchestrator_app = graph_builder.compile()
-

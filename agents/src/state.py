@@ -1,31 +1,23 @@
-"""
-MindSpace Multi-Agent State Definition.
-Maintains contextual data, chat message history, care tiers, and safety flags across nodes.
-"""
 from typing import TypedDict, Annotated, List, Optional, Dict, Any
 import operator
 
 class MindSpaceAgentState(TypedDict):
-    # Session tracking
-    session_id: str
-    member_id: str
-    auth_token: Optional[str]
+    session_id: str                              # Unique conversation session ID
+    member_id: str                               # Logged-in user ID
+    auth_token: Optional[str]                    # Bearer token for API verification
     
-    # Message stream (appends new messages automatically using operator.add)
+    # Annotated with operator.add ensures new messages are APPENDED to history
     messages: Annotated[List[Dict[str, Any]], operator.add]
     
-    # Stepped-Care Tier: 1 = Self-Help, 2 = Peer Listener, 3 = Clinical Telehealth
+    # Stepped-Care Level: 1 = Self-Help, 2 = Peer Listener, 3 = Clinical Crisis
     active_tier: int
-    primary_concerns: List[str]
     
     # Safety Circuit Breaker Metadata
     is_crisis: bool
     crisis_reason: Optional[str]
     
-    # Peer Listener Dispatch Metadata
-    matched_listener_id: Optional[str]
+    # Human Peer Listener Match Metadata
     matched_listener_name: Optional[str]
     
-    # Routing State
+    # Destination node for routing
     next_node: str
-

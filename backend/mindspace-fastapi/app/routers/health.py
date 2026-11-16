@@ -1,7 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
-from app.core.database import get_db
+from app.services.health_service import HealthService, get_health_service
 
 router = APIRouter(tags=["Health"])
 
@@ -23,14 +21,5 @@ async def health_live():
 
 @router.get("/health/ready")
 @router.get("/health/db")
-async def health_db(db: AsyncSession = Depends(get_db)):
-    try:
-        await db.execute(text("SELECT 1"))
-        return {
-            "status": "ok",
-            "service": "mindspace-postgres",
-            "message": "PostgreSQL Database is running and connected",
-            "port": 5433,
-        }
-    except Exception as e:
-        return {"status": "degraded", "service": "mindspace-postgres", "error": str(e)}
+async def health_db(service: HealthService = Depends(get_health_service)):
+    return await service.check_db_health()

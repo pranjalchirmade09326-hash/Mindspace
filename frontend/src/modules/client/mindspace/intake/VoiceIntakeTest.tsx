@@ -71,9 +71,28 @@ const PCM_WORKLET_CODE = `
 class PcmCaptureProcessor extends AudioWorkletProcessor {
   process(inputs) {
     const channel = inputs[0]?.[0];
-    if (channel && channel.length > 0) {
+    if (!channel || channel.length === 0) return true;
+
+    // Direct 16kHz pass-through if browser natively supports 16kHz AudioContext
+    if (sampleRate === 16000) {
       const copy = new Float32Array(channel);
       this.port.postMessage(copy, [copy.buffer]);
+      return true;
+    }
+
+    // High-quality linear resampling from browser hardware rate (e.g. 48kHz, 44.1kHz) to 16kHz
+    const ratio = sampleRate / 16000;
+    const outLength = Math.floor(channel.length / ratio);
+    if (outLength > 0) {
+      const output = new Float32Array(outLength);
+      for (let i = 0; i < outLength; i++) {
+        const inIndex = i * ratio;
+        const i0 = Math.floor(inIndex);
+        const i1 = Math.min(i0 + 1, channel.length - 1);
+        const frac = inIndex - i0;
+        output[i] = channel[i0] * (1 - frac) + channel[i1] * frac;
+      }
+      this.port.postMessage(output, [output.buffer]);
     }
     return true;
   }
@@ -147,6 +166,44 @@ function stripWavHeader(base64: string): string {
 }
 
 /**
+ * Speaks text using the browser's built-in SpeechSynthesis API as a 100% reliable
+ * zero-latency fallback when backend audio stream is unavailable or AudioContext is muted.
+ */
+function speakBrowserFallback(
+  text: string,
+  onEnded?: () => void,
+): void {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    onEnded?.();
+    return;
+  }
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    // Detect Devanagari Hindi characters
+    const hasHindi = /[\u0900-\u097F]/.test(text);
+    const voices = window.speechSynthesis.getVoices();
+    if (hasHindi) {
+      utterance.lang = "hi-IN";
+      const hiVoice = voices.find((v) => v.lang.toLowerCase().includes("hi"));
+      if (hiVoice) utterance.voice = hiVoice;
+    } else {
+      utterance.lang = "en-IN";
+      const enVoice = voices.find((v) => v.lang.toLowerCase().includes("en-in") || v.lang.toLowerCase().includes("en-us"));
+      if (enVoice) utterance.voice = enVoice;
+    }
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+    utterance.onend = () => onEnded?.();
+    utterance.onerror = () => onEnded?.();
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
+    console.warn("[VoiceIntakeTest] speechSynthesis fallback error:", e);
+    onEnded?.();
+  }
+}
+
+/**
  * Decodes a base64 PCM-16 mono payload and schedules it for gapless playback.
  *
  * @param base64      - PCM-16 LE audio encoded as base64.
@@ -157,28 +214,74 @@ function scheduleAudioChunk(
   base64: string,
   ctx: AudioContext,
   nextTimeRef: { current: number },
+  onEnded?: () => void,
 ): void {
-  const clean = stripWavHeader(base64);
-  const binary = atob(clean);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  try {
+    if (ctx.state === "suspended") {
+      void ctx.resume();
+    }
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
-  const pcm = new Int16Array(bytes.buffer);
-  if (pcm.length === 0) return;
+    // 1. Native Web Audio API decoding (handles Sarvam WAV & standard audio formats)
+    ctx.decodeAudioData(
+      bytes.buffer.slice(0),
+      (audioBuffer) => {
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(ctx.destination);
+        const now = ctx.currentTime;
+        if (nextTimeRef.current < now) nextTimeRef.current = now;
+        source.start(nextTimeRef.current);
+        nextTimeRef.current += audioBuffer.duration;
+        source.onended = () => {
+          if (ctx.currentTime >= nextTimeRef.current - 0.08) {
+            onEnded?.();
+          }
+        };
+      },
+      () => {
+        // 2. Fallback: Raw PCM-16 extraction if raw frame without header
+        try {
+          const clean = stripWavHeader(base64);
+          const bin = atob(clean);
+          const len = Math.floor(bin.length / 2) * 2;
+          const pcmBytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) pcmBytes[i] = bin.charCodeAt(i);
+          const pcm = new Int16Array(pcmBytes.buffer);
+          if (pcm.length === 0) {
+            onEnded?.();
+            return;
+          }
 
-  const audioBuffer = ctx.createBuffer(1, pcm.length, ctx.sampleRate);
-  const channel = audioBuffer.getChannelData(0);
-  for (let i = 0; i < pcm.length; i++) channel[i] = pcm[i] / 32768;
+          const audioBuffer = ctx.createBuffer(1, pcm.length, ctx.sampleRate);
+          const channel = audioBuffer.getChannelData(0);
+          for (let i = 0; i < pcm.length; i++) channel[i] = pcm[i] / 32768;
 
-  const source = ctx.createBufferSource();
-  source.buffer = audioBuffer;
-  source.connect(ctx.destination);
+          const source = ctx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(ctx.destination);
 
-  // Linear scheduler — ensures chunks play back-to-back without gaps or overlaps
-  const now = ctx.currentTime;
-  if (nextTimeRef.current < now) nextTimeRef.current = now;
-  source.start(nextTimeRef.current);
-  nextTimeRef.current += audioBuffer.duration;
+          const now = ctx.currentTime;
+          if (nextTimeRef.current < now) nextTimeRef.current = now;
+          source.start(nextTimeRef.current);
+          nextTimeRef.current += audioBuffer.duration;
+          source.onended = () => {
+            if (ctx.currentTime >= nextTimeRef.current - 0.08) {
+              onEnded?.();
+            }
+          };
+        } catch (pcmErr) {
+          console.warn("[VoiceIntakeTest] PCM fallback error:", pcmErr);
+          onEnded?.();
+        }
+      }
+    );
+  } catch (e) {
+    console.error("[VoiceIntakeTest] Base64 audio decode error:", e);
+    onEnded?.();
+  }
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -198,7 +301,13 @@ export function VoiceIntakeTest({
   patientContext,
 }: VoiceIntakeTestProps) {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
-  const [agentPhase, setAgentPhase] = useState<AgentPhase>("idle");
+  const [agentPhase, setAgentPhaseState] = useState<AgentPhase>("idle");
+  const agentPhaseRef = useRef<AgentPhase>("idle");
+
+  const setAgentPhase = useCallback((phase: AgentPhase) => {
+    agentPhaseRef.current = phase;
+    setAgentPhaseState(phase);
+  }, []);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [liveTranscript, setLiveTranscript] = useState("");
   const [liveRole, setLiveRole] = useState<"user" | "assistant" | null>(null);
@@ -221,6 +330,31 @@ export function VoiceIntakeTest({
   // Playback-side audio resources
   const playbackCtxRef = useRef<AudioContext | null>(null);
   const nextPlayTimeRef = useRef<number>(0);
+
+  // Browser SpeechRecognition ref for crystal-clear real-time speech capture
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const speechRecRef = useRef<any>(null);
+  const speakingSafetyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Unlock audio contexts on any user interaction with the page
+  useEffect(() => {
+    const unlockContexts = () => {
+      if (playbackCtxRef.current && playbackCtxRef.current.state === "suspended") {
+        void playbackCtxRef.current.resume();
+      }
+      if (captureCtxRef.current && captureCtxRef.current.state === "suspended") {
+        void captureCtxRef.current.resume();
+      }
+    };
+    window.addEventListener("click", unlockContexts);
+    window.addEventListener("touchstart", unlockContexts);
+    window.addEventListener("keydown", unlockContexts);
+    return () => {
+      window.removeEventListener("click", unlockContexts);
+      window.removeEventListener("touchstart", unlockContexts);
+      window.removeEventListener("keydown", unlockContexts);
+    };
+  }, []);
 
   /**
    * Holds the current (possibly still-growing) user speech transcript.
@@ -289,6 +423,19 @@ export function VoiceIntakeTest({
   // ── Teardown all audio + WS resources ────────────────────────────────────────
 
   const teardown = useCallback(() => {
+    if (speechRecRef.current) {
+      try {
+        speechRecRef.current.stop();
+      } catch {}
+      speechRecRef.current = null;
+    }
+    if (speakingSafetyTimerRef.current) {
+      clearTimeout(speakingSafetyTimerRef.current);
+      speakingSafetyTimerRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
     if (workletNodeRef.current) {
       workletNodeRef.current.port.onmessage = null;
       workletNodeRef.current.disconnect();
@@ -404,7 +551,11 @@ export function VoiceIntakeTest({
       ws.binaryType = "arraybuffer";
 
       // 3. Playback context — 24 kHz matches the backend TTS output rate
-      const playCtx = new AudioContext({ sampleRate: 24000 });
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const playCtx = new AudioCtx({ sampleRate: 24000 });
+      if (playCtx.state === "suspended") {
+        void playCtx.resume();
+      }
       playbackCtxRef.current = playCtx;
       nextPlayTimeRef.current = 0;
 
@@ -413,15 +564,70 @@ export function VoiceIntakeTest({
         setStatus("connected");
 
         try {
-          // 4. Request microphone access
+          // 4. Request microphone access with browser echo cancellation & noise suppression
           const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              channelCount: 1,
+            },
           });
           mediaStreamRef.current = stream;
-          console.log("[VoiceIntakeTest] mic access granted");
+          console.log("[VoiceIntakeTest] mic access granted with echo cancellation");
+
+          // 4b. Optional browser SpeechRecognition for instant, real-time speech capture
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+          if (SpeechRecognition) {
+            try {
+              const rec = new SpeechRecognition();
+              rec.continuous = true;
+              rec.interimResults = true;
+              rec.lang = "hi-IN"; // Supports Hindi, Hinglish, and English
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              rec.onresult = (event: any) => {
+                let interim = "";
+                let final = "";
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                  const res = event.results[i];
+                  if (res.isFinal) {
+                    final += res[0].transcript;
+                  } else {
+                    interim += res[0].transcript;
+                  }
+                }
+                if (interim.trim()) {
+                  pendingUserTranscriptRef.current = interim.trim();
+                  setLiveTranscript(interim.trim());
+                  setLiveRole("user");
+                }
+                if (final.trim()) {
+                  console.log("[VoiceIntakeTest] Browser STT final transcript:", final.trim());
+                  pendingUserTranscriptRef.current = final.trim();
+                  setLiveTranscript(final.trim());
+                  setLiveRole("user");
+                  if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                    wsRef.current.send(JSON.stringify({ type: "user_speech", text: final.trim() }));
+                  }
+                }
+              };
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              rec.onerror = (e: any) => {
+                console.warn("[VoiceIntakeTest] SpeechRecognition notice:", e.error);
+              };
+              rec.start();
+              speechRecRef.current = rec;
+            } catch (recErr) {
+              console.warn("[VoiceIntakeTest] SpeechRecognition init:", recErr);
+            }
+          }
 
           // 5. Build AudioWorklet capture pipeline (16 kHz — matches agent input)
-          const captureCtx = new AudioContext({ sampleRate: 16000 });
+          const captureCtx = new AudioCtx({ sampleRate: 16000 });
+          if (captureCtx.state === "suspended") {
+            void captureCtx.resume();
+          }
           captureCtxRef.current = captureCtx;
 
           // Register the worklet from an inline Blob URL (no public/ file needed)
@@ -442,7 +648,7 @@ export function VoiceIntakeTest({
           );
           workletNodeRef.current = workletNode;
 
-          // Forward each PCM frame over the open WebSocket
+          // Stream PCM mic frames directly to agent backend
           workletNode.port.onmessage = (e: MessageEvent<Float32Array>) => {
             if (wsRef.current?.readyState === WebSocket.OPEN) {
               wsRef.current.send(float32ToPcm16(e.data));
@@ -470,35 +676,55 @@ export function VoiceIntakeTest({
             /** "status" — agent-reported phase: "greeting" | "ready" | "thinking". */
             status?: string;
           };
-          console.log({ data });
 
-          // Log every raw message so we can verify what the backend sends
-          console.log("[VoiceIntakeTest] WS message:", {
-            type: data.type,
-            text: data.text?.slice(0, 100), // truncate long text
-            hasAudio: !!data.audio,
-          });
+          // Helper to play agent voice with guaranteed fallback
+          const playAssistantVoice = (spokenText: string, audioBase64?: string) => {
+            setAgentPhase("speaking");
+            if (speakingSafetyTimerRef.current) {
+              clearTimeout(speakingSafetyTimerRef.current);
+            }
+            // Guarantee mic is unblocked within 5 seconds max if onEnded fails
+            speakingSafetyTimerRef.current = setTimeout(() => {
+              setAgentPhase("ready");
+            }, 5000);
+
+            let playedViaWebAudio = false;
+            const ctx = playbackCtxRef.current;
+            if (audioBase64 && audioBase64.trim() && ctx) {
+              if (ctx.state === "suspended") void ctx.resume();
+              try {
+                scheduleAudioChunk(audioBase64, ctx, nextPlayTimeRef, () => {
+                  if (speakingSafetyTimerRef.current) clearTimeout(speakingSafetyTimerRef.current);
+                  setAgentPhase("ready");
+                });
+                playedViaWebAudio = true;
+              } catch (playErr) {
+                console.warn("[VoiceIntakeTest] WebAudio playback failed, trying speech synthesis:", playErr);
+              }
+            }
+
+            if (!playedViaWebAudio && spokenText) {
+              speakBrowserFallback(spokenText, () => {
+                if (speakingSafetyTimerRef.current) clearTimeout(speakingSafetyTimerRef.current);
+                setAgentPhase("ready");
+              });
+            }
+          };
 
           if (data.type === "status" && data.status) {
             console.log("[VoiceIntakeTest] status:", data.status);
             if (data.status === "greeting") {
               setAgentPhase("greeting");
             } else if (data.status === "ready") {
-              setAgentPhase("ready");
+              const ctx = playbackCtxRef.current;
+              if (!ctx || ctx.currentTime >= nextPlayTimeRef.current - 0.08) {
+                setAgentPhase("ready");
+              }
             } else if (data.status === "thinking") {
               setAgentPhase("thinking");
             } else if (data.status === "end") {
-              /*
-               * Agent-side signal that the conversation has ended — mirrors
-               * TextIntake's status_end handling: matched on data.status
-               * alone, auto-runs the same "End Call" flow the patient would
-               * otherwise trigger manually via the button.
-               */
               flushPendingUserTranscript();
               flushPendingAssistantText();
-              // UI-only notice — added via setMessages directly (not
-              // addMessage) so it never reaches messagesRef and therefore
-              // never pollutes the saved conversation/report payload in endCall.
               setMessages((prev) => [
                 ...prev,
                 {
@@ -509,22 +735,11 @@ export function VoiceIntakeTest({
               ]);
               void endCall();
             }
-            // Unrecognized status values are logged above but otherwise
-            // ignored — no UI state to fall back to without a label for them.
           }
 
           if (data.type === "status_end") {
-            /*
-             * Agent-side signal that the conversation has ended — mirrors
-             * TextIntake's status_end handling: matched on data.status
-             * alone, auto-runs the same "End Call" flow the patient would
-             * otherwise trigger manually via the button.
-             */
             flushPendingUserTranscript();
             flushPendingAssistantText();
-            // UI-only notice — added via setMessages directly (not
-            // addMessage) so it never reaches messagesRef and therefore
-            // never pollutes the saved conversation/report payload in endCall.
             setMessages((prev) => [
               ...prev,
               {
@@ -537,10 +752,7 @@ export function VoiceIntakeTest({
           }
 
           if (data.type === "transcript" && data.text !== undefined) {
-            // New user turn starting — commit any in-flight agent text first
             flushPendingAssistantText();
-            // Backend streams the growing user transcript; show it live.
-            // We do NOT commit it yet — wait until the AI starts replying.
             console.log("[VoiceIntakeTest] transcript:", data.text);
             pendingUserTranscriptRef.current = data.text;
             setLiveTranscript(data.text);
@@ -548,21 +760,20 @@ export function VoiceIntakeTest({
           }
 
           if (data.type === "text" && data.text) {
-            // Streaming agent text (backend sends incremental "text" events)
-            console.log(
-              "[VoiceIntakeTest] text (agent):",
-              data.text.slice(0, 100),
-            );
+            console.log("[VoiceIntakeTest] text (agent):", data.text.slice(0, 100));
             flushPendingUserTranscript();
-            pendingAssistantTextRef.current += data.text;
-            setLiveTranscript(pendingAssistantTextRef.current);
-            setLiveRole("assistant");
-            setAgentPhase("speaking");
+            pendingAssistantTextRef.current = "";
+            addMessage({
+              key: nanoid(),
+              from: "assistant",
+              content: data.text,
+            });
+            setLiveTranscript("");
+            setLiveRole(null);
+            playAssistantVoice(data.text, data.audio);
           }
 
           if (data.type === "text_delta" && data.text) {
-            // Fallback: some backends emit text_delta instead of text
-            console.log("[VoiceIntakeTest] text_delta:", data.text);
             flushPendingUserTranscript();
             pendingAssistantTextRef.current += data.text;
             setLiveTranscript(pendingAssistantTextRef.current);
@@ -571,7 +782,6 @@ export function VoiceIntakeTest({
           }
 
           if (data.type === "assistant_text" && data.text) {
-            // Settled AI response (some backends send full text at once)
             console.log("[VoiceIntakeTest] assistant_text:", data.text);
             flushPendingUserTranscript();
             pendingAssistantTextRef.current = "";
@@ -582,20 +792,11 @@ export function VoiceIntakeTest({
             });
             setLiveTranscript("");
             setLiveRole(null);
-            setAgentPhase("ready");
+            playAssistantVoice(data.text, data.audio);
           }
 
-          if (data.type === "audio" && data.audio && data.audio.trim()) {
-            console.log(
-              "[VoiceIntakeTest] audio chunk received, length:",
-              data.audio.length,
-            );
-            const ctx = playbackCtxRef.current;
-            if (ctx) {
-              // Resume if the browser auto-suspended the context after creation
-              if (ctx.state === "suspended") ctx.resume();
-              scheduleAudioChunk(data.audio, ctx, nextPlayTimeRef);
-            }
+          if (data.type === "audio" && data.audio) {
+            playAssistantVoice("", data.audio);
           }
 
           if (data.type === "error") {

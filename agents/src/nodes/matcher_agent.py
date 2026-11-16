@@ -4,31 +4,23 @@ Peer Matcher Agent — Coordinates human-in-the-loop volunteer listener matching
 import asyncio
 from typing import Dict, Any
 
-try:
-    from src.state import MindSpaceAgentState
-    from src.tools.core_tools import dispatch_peer_listener_match
-except ImportError:
-    from agents.src.state import MindSpaceAgentState
-    from agents.src.tools.core_tools import dispatch_peer_listener_match
+from src.state import MindSpaceAgentState
+from src.tools.core_tools import dispatch_peer_listener_match
 
 def matcher_node(state: MindSpaceAgentState) -> Dict[str, Any]:
     member_id = state.get("member_id", "anon-member")
     topic = state.get("messages", [{}])[-1].get("content", "General Wellbeing Reflection")
     
-    # Execute async tool inside synchronous node wrapper
+    # Execute async tool safely
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # If running in an event loop (e.g. FastAPI)
+        coro = dispatch_peer_listener_match(member_id, topic, state.get("auth_token"))
+        try:
+            loop = asyncio.get_running_loop()
             import nest_asyncio
             nest_asyncio.apply()
-            result = loop.run_until_complete(
-                dispatch_peer_listener_match(member_id, topic, state.get("auth_token"))
-            )
-        else:
-            result = loop.run_until_complete(
-                dispatch_peer_listener_match(member_id, topic, state.get("auth_token"))
-            )
+            result = loop.run_until_complete(asyncio.wait_for(coro, timeout=1.5))
+        except RuntimeError:
+            result = asyncio.run(asyncio.wait_for(coro, timeout=1.5))
     except Exception:
         result = {"status": "fallback", "listener_name": "Aarav Sharma (Verified Peer Listener)"}
     
@@ -48,4 +40,3 @@ def matcher_node(state: MindSpaceAgentState) -> Dict[str, Any]:
         "matched_listener_name": listener_name,
         "next_node": "END"
     }
-

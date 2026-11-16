@@ -18,8 +18,14 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  let body: any = {};
   try {
-    const body = await req.json();
+    body = await req.json();
+  } catch {
+    body = {};
+  }
+
+  try {
     const { request } = await createMindspaceApiClient();
     const data = await request("/api/v1/wellbeing/moods", {
       method: "POST",
@@ -27,7 +33,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json(data);
   } catch (error: any) {
-    const body = await req.clone().json().catch(() => ({}));
     return NextResponse.json({
       id: `m-${Date.now()}`,
       mood_code: body.mood_code || "calm",

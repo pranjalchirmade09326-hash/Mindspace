@@ -45,23 +45,33 @@ export function SidebarNavUser(props: SidebarNavUserProps) {
     .toUpperCase()
     .slice(0, 2) || "U";
 
-  const rLower = (role ?? "").toLowerCase();
+  const rNorm = (role ?? "").toLowerCase().replace(/_/g, "-");
   const displayRole =
-    rLower === "patient" || rLower === "member"
+    rNorm === "patient" || rNorm === "member"
       ? "Member"
-      : rLower === "doctor" || rLower === "listener"
+      : rNorm === "doctor" || rNorm === "listener"
       ? "Listener"
-      : rLower === "admin" || rLower === "platform-administrator"
+      : rNorm === "listener-supervisor" || rNorm === "supervisor"
+      ? "Listener Supervisor"
+      : rNorm === "safety-operations" || rNorm === "safety-operations-specialist" || rNorm === "safety"
+      ? "Safety Specialist"
+      : rNorm === "admin" || rNorm === "platform-administrator"
       ? "Administrator"
       : role
       ? role.charAt(0).toUpperCase() + role.slice(1)
       : "Member";
 
   const settingsHref =
-    rLower === "patient" || rLower === "member"
+    rNorm === "patient" || rNorm === "member"
       ? "/mindspace/member/profile"
-      : rLower === "doctor" || rLower === "listener"
+      : rNorm === "doctor" || rNorm === "listener"
       ? "/mindspace/listener/profile"
+      : rNorm === "listener-supervisor" || rNorm === "supervisor"
+      ? "/mindspace/listener-supervisor"
+      : rNorm === "safety-operations" || rNorm === "safety-operations-specialist" || rNorm === "safety"
+      ? "/mindspace/safety-operations"
+      : rNorm === "platform-administrator" || rNorm === "admin"
+      ? "/mindspace/platform-administrator"
       : "/mindspace/member/profile";
 
   async function handleLogout() {

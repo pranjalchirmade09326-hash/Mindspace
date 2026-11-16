@@ -55,6 +55,9 @@ async def not_found(_: Request, __):
         status_code=404,
     )
 
-if __name__ == "__main__":
+def main():
     import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8080, reload=True)
+    uvicorn.run("app.main:app", host=settings.HOST, port=settings.PORT, reload=True)
+
+if __name__ == "__main__":
+    main()

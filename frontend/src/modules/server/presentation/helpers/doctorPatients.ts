@@ -14,7 +14,14 @@
 
 import { listAppointmentsAction } from "@/modules/server/presentation/actions/appointment";
 import type { TAppointmentResponse } from "@/modules/entities/schemas/appointment";
-import type { DoctorPatientSummary } from "@/modules/client/telemedicine/doctor/component/clinical-records/types";
+export interface DoctorPatientSummary {
+  patientId: number;
+  name: string;
+  visitCount: number;
+  completedCount: number;
+  upcomingCount: number;
+  lastVisit: string | null;
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 

@@ -22,11 +22,10 @@ dependencies = [
 ]
 
 [project.scripts]
-mindspace-fastapi = "mindspace_fastapi:main"
+mindspace-fastapi = "app.main:main"
 
-[build-system]
-requires = ["uv_build>=0.12.7,<0.13.0"]
-build-backend = "uv_build"
+[tool.uv]
+package = false
 
 [dependency-groups]
 dev = [

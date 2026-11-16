@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const { request } = await createMindspaceApiClient();
-    const data = await request("/api/v1/wellbeing/reflections");
+    const data = await request("/api/v1/wellbeing/journal");
     return NextResponse.json(data);
   } catch (error: any) {
     return NextResponse.json([
@@ -29,20 +29,30 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  let raw: any = {};
   try {
-    const body = await req.json();
+    raw = await req.json();
+  } catch {
+    raw = {};
+  }
+
+  try {
+    const payload = {
+      title: raw.title || "Personal Reflection",
+      body: raw.body || raw.content || "Reflective thoughts recorded in personal sanctuary.",
+      visibility: raw.visibility || "private",
+    };
     const { request } = await createMindspaceApiClient();
-    const data = await request("/api/v1/wellbeing/reflections", {
+    const data = await request("/api/v1/wellbeing/journal", {
       method: "POST",
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
     return NextResponse.json(data);
   } catch (error: any) {
-    const body = await req.clone().json().catch(() => ({}));
     return NextResponse.json({
       id: `j-${Date.now()}`,
-      title: body.title || "Personal Reflection",
-      body: body.body || "",
+      title: raw.title || "Personal Reflection",
+      body: raw.body || raw.content || "",
       tags: ["Private", "Journal"],
       date: new Date().toISOString(),
       source: "fallback",

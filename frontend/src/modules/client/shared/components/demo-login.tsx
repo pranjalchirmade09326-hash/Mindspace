@@ -10,14 +10,13 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Input } from "@/components/ui/input";
 import { Loader2, Copy, Check } from "lucide-react";
 
 interface DemoAccount {
   email: string;
   password: string;
   name: string;
-  role: "member" | "listener" | "admin";
+  role: "member" | "listener" | "listener-supervisor" | "safety-operations" | "platform-administrator";
   description: string;
   avatar: string;
   color: string;
@@ -61,11 +60,29 @@ const DEMO_ACCOUNTS: DemoAccount[] = [
     color: "from-cyan-500 to-blue-600",
   },
   {
+    email: "supervisor@demo.com",
+    password: "demo123456",
+    name: "Rae Kim",
+    role: "listener-supervisor",
+    description: "Listener Supervisor overseeing pod quality & audits",
+    avatar: "🧭",
+    color: "from-blue-500 to-indigo-600",
+  },
+  {
+    email: "safety@demo.com",
+    password: "demo123456",
+    name: "Noor Haddad",
+    role: "safety-operations",
+    description: "Safety Operations Specialist managing crisis triage",
+    avatar: "🛡️",
+    color: "from-amber-500 to-red-600",
+  },
+  {
     email: "admin@demo.com",
     password: "demo123456",
-    name: "Admin User",
-    role: "admin",
-    description: "Administrator access to platform",
+    name: "Platform Administrator",
+    role: "platform-administrator",
+    description: "Administrator access to platform, telemetry & audits",
     avatar: "👨‍💻",
     color: "from-purple-500 to-pink-600",
   },
@@ -98,8 +115,24 @@ export const DemoLoginComponent: React.FC<DemoLoginComponentProps> = ({
       localStorage.setItem("displayName", account.name);
       localStorage.setItem("isDemoMode", "true");
 
-      // Simulate login delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Establish authenticated mindspace_session cookie for server components
+      try {
+        await fetch("/api/auth/dev-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: `demo-${account.role}`,
+            email: account.email,
+            role: account.role,
+            name: account.name,
+          }),
+        });
+      } catch (authErr) {
+        console.warn("Dev login cookie set error:", authErr);
+      }
+
+      // Simulate brief login transition
+      await new Promise((resolve) => setTimeout(resolve, 600));
 
       // Redirect to appropriate dashboard
       const dashboardPath =
@@ -107,7 +140,11 @@ export const DemoLoginComponent: React.FC<DemoLoginComponentProps> = ({
           ? "/mindspace/member"
           : account.role === "listener"
             ? "/mindspace/listener"
-            : "/mindspace/admin";
+            : account.role === "listener-supervisor"
+              ? "/mindspace/listener-supervisor"
+              : account.role === "safety-operations"
+                ? "/mindspace/safety-operations"
+                : "/mindspace/platform-administrator";
 
       onLoginComplete?.(account.role);
       router.push(dashboardPath);

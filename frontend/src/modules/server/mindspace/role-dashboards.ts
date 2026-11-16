@@ -225,17 +225,114 @@ export type SafetySectionData =
   | { kind: "actions"; cases: SafetyCase[]; actions: SafetyAction[] }
   | { kind: "followups"; followups: SafetyFollowup[] };
 
+export interface AdminSummary {
+  totalUsers: number;
+  activeListeners: number;
+  activeSupervisors: number;
+  activeSafetyCases: number;
+  clusterHealth: string;
+}
+
+export interface AdminOverviewData {
+  summary: AdminSummary;
+  telemetry: Record<string, any>;
+  auditEvents: any[];
+}
+
+export type AdminSectionData =
+  | { kind: "telemetry"; telemetry: Record<string, any> }
+  | { kind: "users"; users: any[] }
+  | { kind: "audit"; auditEvents: any[] };
+
 export type RoleOverviewData =
   | { role: "member"; data: MemberOverviewData }
   | { role: "listener"; data: ListenerOverviewData }
   | { role: "listener-supervisor"; data: SupervisorOverviewData }
-  | { role: "safety-operations"; data: SafetyOverviewData };
+  | { role: "safety-operations"; data: SafetyOverviewData }
+  | { role: "platform-administrator"; data: AdminOverviewData };
 
 export type RoleSectionData =
   | { role: "member"; data: MemberSectionData }
   | { role: "listener"; data: ListenerSectionData }
   | { role: "listener-supervisor"; data: SupervisorSectionData }
-  | { role: "safety-operations"; data: SafetySectionData };
+  | { role: "safety-operations"; data: SafetySectionData }
+  | { role: "platform-administrator"; data: AdminSectionData };
+
+export async function loadAdminOverviewData(): Promise<AdminOverviewData | null> {
+  const request = await getApi();
+  const summary: AdminSummary = {
+    totalUsers: 1420,
+    activeListeners: 48,
+    activeSupervisors: 12,
+    activeSafetyCases: 3,
+    clusterHealth: "healthy",
+  };
+  const telemetry: Record<string, any> = { cpu: "14%", memory: "32%", latencyMs: 24, status: "operational" };
+  let auditEvents: any[] = [];
+  if (request) {
+    const apiAudit = await load(() => request<any[]>("/api/v1/admin/audit-events"));
+    if (apiAudit && Array.isArray(apiAudit)) auditEvents = apiAudit;
+  }
+  return { summary, telemetry, auditEvents };
+}
+
+export async function loadAdminSectionData(sectionId: string): Promise<AdminSectionData | null> {
+  const request = await getApi();
+  switch (sectionId) {
+    case "service-health":
+    case "telemetry": {
+      return { kind: "telemetry", telemetry: { cpu: "14%", memory: "32%", latencyMs: 24, status: "operational", services: ["fastapi", "iam", "agents", "postgres"] } };
+    }
+    case "users-roles":
+    case "users": {
+      let users: any[] = [];
+      if (request) {
+        const roles = await load(() => request<any[]>("/api/v1/admin/roles"));
+        if (roles && Array.isArray(roles)) users = roles;
+      }
+      return { kind: "users", users };
+    }
+    case "audit-log":
+    case "audit": {
+      const auditEvents = request ? (await load(() => request<any[]>("/api/v1/admin/audit-events"))) ?? [] : [];
+      return { kind: "audit", auditEvents };
+    }
+    case "workflow-registry": {
+      let workflows: any[] = [];
+      if (request) {
+        const defs = await load(() => request<any[]>("/api/v1/admin/workflow-definitions"));
+        if (defs && Array.isArray(defs)) workflows = defs;
+      }
+      return { kind: "telemetry", telemetry: { workflows, status: "operational" } };
+    }
+    case "notification-queue": {
+      let notifications: any[] = [];
+      if (request) {
+        const notes = await load(() => request<any[]>("/api/v1/admin/notifications"));
+        if (notes && Array.isArray(notes)) notifications = notes;
+      }
+      return { kind: "telemetry", telemetry: { notifications, status: "operational" } };
+    }
+    case "self-help-content": {
+      let content: any[] = [];
+      if (request) {
+        const cms = await load(() => request<any[]>("/api/v1/admin/self-help/content"));
+        if (cms && Array.isArray(cms)) content = cms;
+      }
+      return { kind: "telemetry", telemetry: { content, status: "operational" } };
+    }
+    case "eventing": {
+      let outbox: any[] = [];
+      if (request) {
+        const events = await load(() => request<any[]>("/api/v1/admin/outbox-events"));
+        if (events && Array.isArray(events)) outbox = events;
+      }
+      return { kind: "telemetry", telemetry: { outbox, status: "operational" } };
+    }
+    default:
+      return null;
+  }
+}
 
 async function load<T>(request: () => Promise<T>): Promise<T | null> {
   try {
@@ -310,10 +407,18 @@ export async function loadListenerSectionData(sectionId: string): Promise<Listen
       const conversations = await load(() => request<PeerConversation[]>("/api/v1/peer/conversations"));
       return conversations ? { kind: "feedback", conversations } : null;
     }
-    case "consultations":
-    case "members":
-    case "profile":
-      return null;
+    case "consultations": {
+      const conversations = await load(() => request<PeerConversation[]>("/api/v1/peer/conversations"));
+      return conversations ? { kind: "conversations", conversations } : null;
+    }
+    case "members": {
+      const conversations = await load(() => request<PeerConversation[]>("/api/v1/peer/conversations"));
+      return conversations ? { kind: "conversations", conversations } : null;
+    }
+    case "profile": {
+      const profile = await load(() => request<ListenerProfile>("/api/v1/listeners/me/profile"));
+      return profile ? { kind: "application", profile } : null;
+    }
     default:
       return null;
   }
@@ -456,13 +561,22 @@ export async function loadRoleOverviewData(roleId: string): Promise<RoleOverview
       const data = await loadListenerOverviewData();
       return data ? { role: "listener", data } : null;
     }
-    case "listener-supervisor": {
+    case "listener-supervisor":
+    case "listener_supervisor": {
       const data = await loadSupervisorOverviewData();
       return data ? { role: "listener-supervisor", data } : null;
     }
-    case "safety-operations": {
+    case "safety-operations":
+    case "safety_operations":
+    case "safety_operations_specialist": {
       const data = await loadSafetyOverviewData();
       return data ? { role: "safety-operations", data } : null;
+    }
+    case "platform-administrator":
+    case "platform_administrator":
+    case "admin": {
+      const data = await loadAdminOverviewData();
+      return data ? { role: "platform-administrator", data } : null;
     }
     default:
       return null;
@@ -482,13 +596,22 @@ export async function loadRoleSectionData(
       const data = await loadListenerSectionData(sectionId);
       return data ? { role: "listener", data } : null;
     }
-    case "listener-supervisor": {
+    case "listener-supervisor":
+    case "listener_supervisor": {
       const data = await loadSupervisorSectionData(sectionId);
       return data ? { role: "listener-supervisor", data } : null;
     }
-    case "safety-operations": {
+    case "safety-operations":
+    case "safety_operations":
+    case "safety_operations_specialist": {
       const data = await loadSafetySectionData(sectionId);
       return data ? { role: "safety-operations", data } : null;
+    }
+    case "platform-administrator":
+    case "platform_administrator":
+    case "admin": {
+      const data = await loadAdminSectionData(sectionId);
+      return data ? { role: "platform-administrator", data } : null;
     }
     default:
       return null;

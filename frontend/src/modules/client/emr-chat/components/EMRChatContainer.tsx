@@ -46,7 +46,7 @@ import type { WorkflowDefinition } from "@/types/workflow";
 import { SessionSidebar } from "./SessionSidebar";
 import { ChatTopbar, type EmrChatView } from "./ChatTopbar";
 import { WorkflowProgressBanner } from "./WorkflowProgressBanner";
-import { UISchemaPreview } from "@/modules/client/telemedicine/doctor/component/emr/UISchemaPreview";
+import { UISchemaPreview } from "./UISchemaPreview";
 
 // ── emr-chat sub-folder ───────────────────────────────────────────────────────
 import { useEmrSession } from "./emr-chat/useEmrSession";

@@ -8,7 +8,13 @@
  * redirected to the sign-in page.
  */
 
-export const MINDSPACE_SIGNIN_ROLES = ["member", "listener"] as const;
+export const MINDSPACE_SIGNIN_ROLES = [
+  "member",
+  "listener",
+  "listener-supervisor",
+  "safety-operations",
+  "platform-administrator",
+] as const;
 
 export type MindspaceSigninRole = (typeof MINDSPACE_SIGNIN_ROLES)[number];
 
@@ -16,6 +22,9 @@ export type MindspaceSigninRole = (typeof MINDSPACE_SIGNIN_ROLES)[number];
 export const ROLE_HOME: Record<MindspaceSigninRole, string> = {
   member: "/mindspace/member",
   listener: "/mindspace/listener",
+  "listener-supervisor": "/mindspace/listener-supervisor",
+  "safety-operations": "/mindspace/safety-operations",
+  "platform-administrator": "/mindspace/platform-administrator",
 };
 
 /** Staff-only role ids still referenced by dashboards/preview tooling. */
@@ -31,6 +40,43 @@ export function isMindspaceSigninRole(value: unknown): value is MindspaceSigninR
     typeof value === "string" &&
     (MINDSPACE_SIGNIN_ROLES as readonly string[]).includes(value)
   );
+}
+
+/**
+ * Normalizes hyphenated and underscored role codes across IAM and frontend.
+ */
+export function normalizeRoleCode(role?: string | null): MindspaceSigninRole | null {
+  if (!role || typeof role !== "string") return null;
+  const trimmed = role.trim();
+  if (isMindspaceSigninRole(trimmed)) {
+    return trimmed;
+  }
+  const lower = trimmed.toLowerCase();
+  if (lower === "listener_supervisor" || lower === "listener-supervisor" || lower === "supervisor") {
+    return "listener-supervisor";
+  }
+  if (
+    lower === "safety_operations_specialist" ||
+    lower === "safety_operations" ||
+    lower === "safety-operations" ||
+    lower === "safety"
+  ) {
+    return "safety-operations";
+  }
+  if (
+    lower === "platform_administrator" ||
+    lower === "platform-administrator" ||
+    lower === "admin"
+  ) {
+    return "platform-administrator";
+  }
+  if (lower === "patient") {
+    return "member";
+  }
+  if (lower === "doctor") {
+    return "listener";
+  }
+  return null;
 }
 
 /**
@@ -57,18 +103,26 @@ export function resolveWorkspaceAccess(
     // Intake flows belong to the member workspace.
     if (cleanPath.startsWith("/intake")) {
       if (!userRole) return "/login";
-      if (isMindspaceSigninRole(userRole) && userRole !== "member") {
-        return ROLE_HOME[userRole];
+      const normalizedRole = normalizeRoleCode(userRole);
+      if (normalizedRole && normalizedRole !== "member") {
+        return ROLE_HOME[normalizedRole];
       }
     }
     return null;
   }
 
   const routeRole = workspaceMatch[1];
+  const normalizedRouteRole = normalizeRoleCode(routeRole) ?? routeRole;
 
   if (!userRole) return "/login";
+
+  const normalizedUserRole = normalizeRoleCode(userRole);
+  if (normalizedUserRole) {
+    if (normalizedRouteRole === normalizedUserRole) return null;
+    return ROLE_HOME[normalizedUserRole];
+  }
+
   if (routeRole === userRole) return null;
-  if (isMindspaceSigninRole(userRole)) return ROLE_HOME[userRole];
 
   // Staff roles are session-driven previews; leave those alone.
   return null;

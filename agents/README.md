@@ -76,7 +76,7 @@ In accordance with MindSpace's Clean Architecture and Three-Engine isolation mod
 
 Check running agent logs:
 ```bash
-docker compose logs -f previsit-agent
+docker compose logs -f mindspace-agents
 ```
 
 Check container status:

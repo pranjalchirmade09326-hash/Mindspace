@@ -60,10 +60,12 @@ export function MemberProfileView({
   }, [authSession?.user?.name, authSession?.user?.email]);
 
   useEffect(() => {
-    fetch("http://localhost:8080/api/v1/members/me/profile")
+    fetch("/api/mindspace/member/profile")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data?.displayName && !authSession?.user?.name) setDisplayName(data.displayName);
+        if ((data?.displayName || data?.display_name) && !authSession?.user?.name) {
+          setDisplayName(data.displayName || data.display_name);
+        }
       })
       .catch(() => {});
   }, [authSession?.user?.name]);
@@ -72,22 +74,18 @@ export function MemberProfileView({
     e.preventDefault();
     setIsSaving(true);
     try {
-      await Promise.all([
-        fetch("http://localhost:8080/api/v1/members/me/profile", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ display_name: displayName }),
-        }),
-        fetch("http://localhost:8080/api/v1/members/me/preferences", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+      await fetch("/api/mindspace/member/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          display_name: displayName,
+          preferences: {
             locale: "en",
             timezone: "Asia/Kolkata",
             preferred_languages: languages.split(",").map((l) => l.trim()),
-          }),
+          },
         }),
-      ]);
+      });
       toast.success("Profile & Preferences Saved to PostgreSQL!", {
         description: "Your confidential member settings have been securely updated in the database.",
       });

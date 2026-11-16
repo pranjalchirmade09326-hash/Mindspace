@@ -34,3 +34,14 @@ class PeerConversationResponse(BaseModel):
     started_at: datetime
     ended_at: Optional[datetime] = None
     note: Optional[str] = None
+
+class SoapNoteCreate(BaseModel):
+    subjective: str
+    objective: str
+    assessment: str
+    plan: str
+
+class ListenerProfileUpdate(BaseModel):
+    capacity_limit: Optional[int] = None
+    profile_languages: Optional[List[str]] = None
+    display_name: Optional[str] = None

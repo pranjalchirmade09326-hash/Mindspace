@@ -147,7 +147,7 @@ export class SafetyStats {
     // Reward for good assessment completion
     score += (this.props.assessment_completion_rate / 100) * 20;
 
-    return Math.max(Math.round(score), 0);
+    return Math.min(Math.max(Math.round(score), 0), 100);
   }
 
   getSystemStatus(): 'healthy' | 'warning' | 'critical' {

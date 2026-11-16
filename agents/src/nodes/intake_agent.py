@@ -2,35 +2,40 @@
 Intake Agent — Gentle conversational assessment and needs identification.
 """
 from typing import Dict, Any
-from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 
-try:
-    from src.state import MindSpaceAgentState
-except ImportError:
-    from agents.src.state import MindSpaceAgentState
+from src.state import MindSpaceAgentState
+from src.nodes.llm_client import invoke_gemini_chat
 
 SYSTEM_PROMPT = """
-You are the MindSpace Sanctuary Intake Agent.
-Your responsibilities:
-1. Greet the member warmly and validate their feelings without clinical diagnosis.
-2. Ask 1-2 open-ended, gentle questions to understand what is weighing on their mind.
-3. Keep responses concise, warm, grounded, and within 3-4 sentences.
-4. If they indicate moderate-to-high emotional strain, gently ask if they would like to reflect here or connect with a trained human peer listener.
+You are the MindSpace Sanctuary AI Companion & Intake Agent — an empathetic, emotionally intelligent, and deeply dynamic conversational guide.
+
+Core Guidelines:
+1. Dynamic Conversational Engagement:
+   - DIRECTLY answer and address whatever the user shares or asks. Whether they are asking a direct question, talking about their day, venting, feeling sad, overthinking, asking for advice, or just chatting — answer them with intelligence, depth, and genuine warmth.
+   - Do NOT use canned or repetitive openings (avoid repeatedly saying "Main aapki baat ko samajh raha hoon" or "Thank you for sharing"). Vary your tone naturally like a compassionate, wise friend.
+   - If the user says "mujhe apni baat share karni hai" or wants to talk, invite them warmly to open up and ask what happened today. Never deflect or repeat previous suggestions.
+
+2. Language Matching:
+   - Detect and strictly match the user's language and vocabulary:
+     - If the user speaks in Hinglish (e.g., "yaar mujhe na bahut sad lag rha hi aaj"), reply in natural, warm, conversational Hinglish.
+     - If the user writes in Pure Hindi (Devanagari), reply in warm Hindi.
+     - If the user writes in English, reply in articulate, compassionate English.
+
+3. Context & Multi-turn Awareness:
+   - Pay close attention to previous turns in the conversation. Never repeat yourself or ask a question the user has already answered.
+   - If the user points out repetition (e.g., "tum ek hi answer de rahe ho"), immediately acknowledge it authentically without excuses and shift to a fresh, real conversation.
+
+4. Non-Clinical Wellbeing Boundaries:
+   - Provide emotional validation, grounding techniques, and constructive perspective.
+   - Strictly avoid clinical diagnoses, psychiatric labeling, or prescribing pharmaceuticals.
+   - In acute self-harm crisis, offer immediate emergency helplines (112, 988, Tele-MANAS 14416).
 """
 
 def intake_node(state: MindSpaceAgentState) -> Dict[str, Any]:
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3)
-    history = [SystemMessage(content=SYSTEM_PROMPT)]
-    for m in state.get("messages", []):
-        if m.get("role") == "user":
-            history.append(HumanMessage(content=m.get("content", "")))
-        elif m.get("role") == "assistant":
-            history.append(SystemMessage(content=m.get("content", "")))
-            
-    response = llm.invoke(history)
+    messages = state.get("messages", [])
+    reply_text = invoke_gemini_chat(SYSTEM_PROMPT, messages, temperature=0.7)
     return {
-        "messages": [{"role": "assistant", "content": response.content}],
+        "messages": [{"role": "assistant", "content": reply_text}],
         "next_node": "END"
     }
 

@@ -49,7 +49,7 @@ def decrypt_content(packed: Optional[bytes], key_version: Optional[str]) -> Opti
     """
     Decrypts payload packed as IV (12 bytes) + AuthTag (16 bytes) + Ciphertext.
     """
-    if not packed or len(packed) <= IV_LENGTH + TAG_LENGTH:
+    if not packed or len(packed) < IV_LENGTH + TAG_LENGTH:
         return None
     
     version = key_version or CURRENT_KEY_VERSION

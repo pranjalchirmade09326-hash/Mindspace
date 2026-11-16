@@ -211,6 +211,8 @@ describe('AdminStats Entity', () => {
     const stats = new AdminStats({
       ...validStatsProps,
       totalReports: 0,
+      activeModeration: 0,
+      reportsPending: 0,
     });
     expect(stats.getReportResolutionRate()).toBe(0);
     expect(stats.getModerationProgress()).toBe(0);

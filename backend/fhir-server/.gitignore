@@ -61,3 +61,12 @@ terminology_data/**
 .claude/settings.json
 
 .commandcode
+
+# ── FHIR Coverage Resource ───────────────────────────────────────────────────
+# Whitelist coverage resource models, schemas, and mappers (overrides root .gitignore `coverage/`)
+!app/models/coverage/
+!app/models/coverage/**
+!app/schemas/coverage/
+!app/schemas/coverage/**
+!app/fhir/mappers/coverage/
+!app/fhir/mappers/coverage/**
