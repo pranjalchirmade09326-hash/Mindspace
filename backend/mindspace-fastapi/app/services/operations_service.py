@@ -71,12 +71,30 @@ class OperationsService(BaseService):
 
         if "capacityLimit" in payload:
             profile.capacity_limit = payload["capacityLimit"]
+        if "capacity_limit" in payload:
+            profile.capacity_limit = payload["capacity_limit"]
         if "profileLanguages" in payload:
             profile.profile_languages = payload["profileLanguages"]
+        if "profile_languages" in payload:
+            profile.profile_languages = payload["profile_languages"]
         
+        online_val = None
+        for key in ("isOnline", "is_online", "active_now", "activeNow"):
+            if key in payload and payload[key] is not None:
+                online_val = bool(payload[key])
+                break
+        if online_val is not None:
+            profile.active_now = online_val
+
         await self.db.commit()
         await self.db.refresh(profile)
-        return {"status": "success", "profileId": str(profile.id)}
+        return {
+            "status": "success",
+            "profileId": str(profile.id),
+            "active_now": getattr(profile, "active_now", False),
+            "is_online": getattr(profile, "active_now", False),
+            "isOnline": getattr(profile, "active_now", False),
+        }
 
     async def get_listener_training(self, user_id: str) -> list[dict]:
         prof_res = await self.db.execute(select(ListenerProfile).where(ListenerProfile.user_id == user_id))
@@ -283,22 +301,45 @@ class OperationsService(BaseService):
         return {"status": "updated", "id": report_id}
 
     async def create_conduct_report(self, user_id: str, payload: Dict[str, Any]) -> dict:
-        raw_cid = payload.get("conversation_id") or payload.get("conversationId")
+        raw_cid = (
+            payload.get("session_id")
+            or payload.get("sessionId")
+            or payload.get("conversation_id")
+            or payload.get("conversationId")
+        )
         if not raw_cid:
-            raise HTTPException(status_code=400, detail="Missing conversation_id.")
-        c_uuid = uuid.UUID(str(raw_cid))
+            raise HTTPException(status_code=400, detail="Missing conversation_id or session_id.")
 
-        details = payload.get("details") or payload.get("notes") or ""
+        try:
+            c_uuid = uuid.UUID(str(raw_cid))
+        except (ValueError, AttributeError):
+            c_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, str(raw_cid))
+
+        notes = payload.get("notes") or ""
+        reason = payload.get("reason") or ""
+        raw_details = payload.get("details") or ""
+
+        combined_details = raw_details or notes or reason or ""
+        if reason and notes and combined_details != f"[{reason}] {notes}":
+            combined_details = f"[{reason}] {notes}"
+
         ct, kv = (None, None)
-        if details:
-            ct, kv = encrypt_content(str(details))
+        if combined_details:
+            ct, kv = encrypt_content(str(combined_details))
+
+        category = (
+            payload.get("category_code")
+            or payload.get("categoryCode")
+            or reason
+            or "GENERAL"
+        )
 
         rep = ConductReport(
             id=uuid.uuid4(),
             conversation_id=c_uuid,
             reporter_user_id=user_id or payload.get("reporter_user_id") or "usr-demo-member-01",
             reported_user_id=payload.get("reported_user_id") or payload.get("reportedUserId"),
-            category_code=payload.get("category_code") or payload.get("categoryCode", "GENERAL"),
+            category_code=category,
             details_ciphertext=ct,
             key_version=kv,
             severity=payload.get("severity", "routine"),
@@ -314,6 +355,7 @@ class OperationsService(BaseService):
             "report_id": str(rep.id),
             "id": str(rep.id),
             "conversation_id": str(rep.conversation_id),
+            "session_id": str(raw_cid),
             "category_code": rep.category_code,
             "report_state": rep.report_state,
             "severity": rep.severity,

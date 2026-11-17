@@ -1,16 +1,47 @@
 from contextlib import asynccontextmanager
+import asyncio
+import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from app.core.config import settings
 from app.core.init_db import init_and_seed_db
+from app.core.database import AsyncSessionLocal
+from app.services.peer_service import PeerService
 from app.routers import health, dashboards, member, wellbeing, intakes, peer, operations, admins, supervisors, safetys
+
+sweeper_logger = logging.getLogger("mindspace.sweeper")
+
+
+async def run_request_expiry_sweeper():
+    """Background task to periodically sweep expired ListenerMatchRequest records."""
+    while True:
+        try:
+            await asyncio.sleep(60)
+            async with AsyncSessionLocal() as session:
+                service = PeerService(session)
+                count = await service.sweep_expired_requests()
+                if count > 0:
+                    sweeper_logger.info(f"Sweeper expired {count} overdue match requests.")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            sweeper_logger.debug(f"Sweeper pass exception: {e}")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Initialize and seed database if PostgreSQL is available
     await init_and_seed_db()
-    yield
+    sweeper_task = asyncio.create_task(run_request_expiry_sweeper())
+    try:
+        yield
+    finally:
+        sweeper_task.cancel()
+        try:
+            await sweeper_task
+        except asyncio.CancelledError:
+            pass
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

@@ -180,14 +180,48 @@ async def websocket_peer_endpoint(
     try:
         while True:
             data = await websocket.receive_json()
-            # If incoming message contains content, persist and broadcast
-            content = data.get("content") or data.get("text")
-            sender_id = data.get("sender_user_id") or "usr-demo-member-01"
-            if content:
-                msg_payload = PeerMessageCreate(content=content)
-                saved_msg = await service.send_message(sender_id, conversation_id, msg_payload)
-            elif data.get("type") == "ping":
+            msg_type = data.get("type")
+
+            if msg_type == "ping":
                 await websocket.send_json({"type": "pong"})
+            elif msg_type in ("webrtc_signal", "offer", "answer", "candidate", "ice_candidate") or "signal" in data:
+                signal = data.get("signal")
+                if signal is None and msg_type in ("offer", "answer", "candidate", "ice_candidate"):
+                    signal = data
+                from_user = (
+                    data.get("from_user_id")
+                    or data.get("sender_id")
+                    or data.get("sender_user_id")
+                    or "usr-demo-peer"
+                )
+                await manager.broadcast(
+                    str(conversation_id),
+                    {
+                        "type": "webrtc_signal",
+                        "signal": signal,
+                        "from_user_id": from_user,
+                    },
+                    exclude=websocket,
+                )
+            elif msg_type == "session_closed":
+                from_user = (
+                    data.get("from_user_id")
+                    or data.get("sender_id")
+                    or data.get("sender_user_id")
+                    or "usr-demo-member-01"
+                )
+                await service.close_conversation(from_user, conversation_id)
+            else:
+                content = data.get("content") or data.get("text")
+                sender_id = (
+                    data.get("sender_id")
+                    or data.get("sender_user_id")
+                    or data.get("from_user_id")
+                    or "usr-demo-member-01"
+                )
+                if content:
+                    msg_payload = PeerMessageCreate(content=content)
+                    await service.send_message(sender_id, conversation_id, msg_payload)
     except WebSocketDisconnect:
         manager.disconnect(conversation_id, websocket)
     except Exception:

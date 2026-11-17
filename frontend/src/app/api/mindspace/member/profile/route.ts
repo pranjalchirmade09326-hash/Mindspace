@@ -14,7 +14,7 @@ export async function GET() {
       // preferences optional
     }
     return NextResponse.json({
-      ...profile,
+      ...(typeof profile === "object" && profile !== null ? profile : {}),
       preferences,
     });
   } catch (_error: any) {

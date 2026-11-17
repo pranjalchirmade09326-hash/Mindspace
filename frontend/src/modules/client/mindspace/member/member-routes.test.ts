@@ -3,6 +3,10 @@ import { POST as journalPOST, GET as journalGET } from "@/app/api/mindspace/memb
 import { POST as moodsPOST, GET as moodsGET } from "@/app/api/mindspace/member/moods/route";
 import { POST as goalsPOST, GET as goalsGET } from "@/app/api/mindspace/member/goals/route";
 import { POST as peerSessionPOST } from "@/app/api/mindspace/member/peer-session/route";
+import { POST as matchRequestsPOST, GET as matchRequestsGET } from "@/app/api/mindspace/member/match-requests/route";
+import { GET as matchRequestGetById } from "@/app/api/mindspace/member/match-requests/[id]/route";
+import { POST as matchRequestCancelByIdPOST } from "@/app/api/mindspace/member/match-requests/[id]/cancel/route";
+import { POST as matchRequestCancelPOST } from "@/app/api/mindspace/member/match-request/cancel/route";
 import * as apiClientModule from "@/modules/server/mindspace/api-client";
 
 vi.mock("@/modules/server/mindspace/api-client", () => ({
@@ -282,6 +286,145 @@ describe("Member Next.js Route Handlers - Resiliency & Stream Consumption Fixes"
       const json = await res.json();
       expect(json.source).toBe("fallback");
       expect(json.listenerName).toBe("Aarav Sharma (Verified Peer Listener)");
+    });
+  });
+
+  describe("Member Match Request Route Handlers (Milestone 2)", () => {
+    it("POST /api/mindspace/member/match-requests returns backend response on success", async () => {
+      const mockRequest = vi.fn().mockResolvedValue({
+        id: "mr-backend-101",
+        request_state: "queued",
+        support_topic: "anxiety",
+      });
+      vi.mocked(apiClientModule.createMindspaceApiClient).mockResolvedValue({
+        identity: { id: "u-1", name: "User", email: "u@m.com" },
+        request: mockRequest,
+      } as any);
+
+      const req = new Request("http://localhost:4000/api/mindspace/member/match-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          support_topic: "anxiety",
+          preferred_channel: "voice",
+          preferred_languages: ["en"],
+          consent_share_intake: true,
+          notes: "Need somatic grounding",
+        }),
+      });
+
+      const res = await matchRequestsPOST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.id).toBe("mr-backend-101");
+      expect(json.request_state).toBe("queued");
+      expect(mockRequest).toHaveBeenCalledWith(
+        "/api/v1/peer/match-requests",
+        expect.objectContaining({ method: "POST" })
+      );
+    });
+
+    it("POST /api/mindspace/member/match-requests rejects invalid support topic with 400", async () => {
+      const req = new Request("http://localhost:4000/api/mindspace/member/match-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          support_topic: "invalid-medical-diagnosis",
+        }),
+      });
+
+      const res = await matchRequestsPOST(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error).toBeDefined();
+    });
+
+    it("POST /api/mindspace/member/match-requests falls back gracefully when backend is offline", async () => {
+      vi.mocked(apiClientModule.createMindspaceApiClient).mockRejectedValue(
+        new Error("Backend unreachable")
+      );
+
+      const req = new Request("http://localhost:4000/api/mindspace/member/match-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          support_topic: "stress",
+          channel: "video",
+          notes: "Work burnout",
+        }),
+      });
+
+      const res = await matchRequestsPOST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.source).toBe("fallback");
+      expect(json.request_state).toBe("queued");
+      expect(json.support_topic).toBe("stress");
+      expect(json.preferred_channel).toBe("video");
+    });
+
+    it("GET /api/mindspace/member/match-requests returns match requests list", async () => {
+      const mockRequest = vi.fn().mockResolvedValue([
+        { id: "mr-1", request_state: "queued" },
+      ]);
+      vi.mocked(apiClientModule.createMindspaceApiClient).mockResolvedValue({
+        identity: { id: "u-1", name: "User", email: "u@m.com" },
+        request: mockRequest,
+      } as any);
+
+      const res = await matchRequestsGET();
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.length).toBe(1);
+    });
+
+    it("GET /api/mindspace/member/match-requests/[id] retrieves match request status with fallback", async () => {
+      vi.mocked(apiClientModule.createMindspaceApiClient).mockRejectedValue(
+        new Error("Backend unreachable")
+      );
+
+      const req = new Request("http://localhost:4000/api/mindspace/member/match-requests/mr-999");
+      const res = await matchRequestGetById(req, {
+        params: Promise.resolve({ id: "mr-999" }),
+      });
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.id).toBe("mr-999");
+      expect(json.request_state).toBe("queued");
+    });
+
+    it("POST /api/mindspace/member/match-requests/[id]/cancel cancels match request with fallback", async () => {
+      vi.mocked(apiClientModule.createMindspaceApiClient).mockRejectedValue(
+        new Error("Backend unreachable")
+      );
+
+      const req = new Request("http://localhost:4000/api/mindspace/member/match-requests/mr-999/cancel", {
+        method: "POST",
+      });
+      const res = await matchRequestCancelByIdPOST(req, {
+        params: Promise.resolve({ id: "mr-999" }),
+      });
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.id).toBe("mr-999");
+      expect(json.status).toBe("cancelled");
+    });
+
+    it("POST /api/mindspace/member/match-request/cancel cancels via body parameter", async () => {
+      vi.mocked(apiClientModule.createMindspaceApiClient).mockRejectedValue(
+        new Error("Backend unreachable")
+      );
+
+      const req = new Request("http://localhost:4000/api/mindspace/member/match-request/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: "mr-888" }),
+      });
+      const res = await matchRequestCancelPOST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.id).toBe("mr-888");
+      expect(json.status).toBe("cancelled");
     });
   });
 });

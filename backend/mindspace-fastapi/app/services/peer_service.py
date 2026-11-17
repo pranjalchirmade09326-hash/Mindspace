@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc, func, update
+from sqlalchemy import select, desc, func, update, or_
 from sqlalchemy.orm import aliased
 from app.core.database import get_db
 from app.core.security import encrypt_content, decrypt_content
@@ -17,9 +17,19 @@ from app.schemas.peer import (
     FeedbackCreate,
 )
 from app.services.base import BaseService
+from app.services.operations_service import OperationsService
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 import uuid
+import re
+import logging
+
+logger = logging.getLogger("mindspace.peer")
+
+CRISIS_REGEX = re.compile(
+    r"\b(suicide|kill\s+myself|end\s+my\s+life|want\s+to\s+die|hang\s+myself|hurt\s+myself|self[- ]harm|overdose|shoot\s+myself|slit\s+my\s+wrists)\b",
+    re.IGNORECASE
+)
 
 
 class PeerService(BaseService):
@@ -109,6 +119,13 @@ class PeerService(BaseService):
         if not req:
             raise HTTPException(status_code=404, detail="Match request not found.")
 
+        # Transition to expired if overdue
+        now = datetime.utcnow()
+        if req.request_state == "queued" and req.expires_at and req.expires_at < now:
+            req.request_state = "expired"
+            req.closed_at = now
+            await self.db.commit()
+
         matched_listener = None
         conversation_id = None
         match_id = None
@@ -182,15 +199,18 @@ class PeerService(BaseService):
         return {"status": "cancelled", "id": str(req.id)}
 
     async def list_active_match_requests(self, user_id: str) -> list[dict]:
+        now = datetime.utcnow()
         stmt = (
             select(ListenerMatchRequest, MemberProfile.display_name)
             .outerjoin(MemberProfile, ListenerMatchRequest.member_id == MemberProfile.user_id)
-            .where(ListenerMatchRequest.request_state == "queued")
+            .where(
+                ListenerMatchRequest.request_state == "queued",
+                or_(ListenerMatchRequest.expires_at.is_(None), ListenerMatchRequest.expires_at > now)
+            )
             .order_by(ListenerMatchRequest.created_at.asc())
         )
         res = await self.db.execute(stmt)
         rows = res.all()
-        now = datetime.utcnow()
 
         results = []
         for req, member_name in rows:
@@ -207,6 +227,21 @@ class PeerService(BaseService):
                 "urgency": "routine"
             })
         return results
+
+    async def sweep_expired_requests(self) -> int:
+        now = datetime.utcnow()
+        stmt = (
+            update(ListenerMatchRequest)
+            .where(
+                ListenerMatchRequest.request_state == "queued",
+                ListenerMatchRequest.expires_at.is_not(None),
+                ListenerMatchRequest.expires_at < now
+            )
+            .values(request_state="expired", closed_at=now)
+        )
+        res = await self.db.execute(stmt)
+        await self.db.commit()
+        return res.rowcount or 0
 
     async def accept_match_request(self, user_id: str, request_id: str) -> dict:
         try:
@@ -248,18 +283,20 @@ class PeerService(BaseService):
         if open_count >= (listener.capacity_limit or 1):
             raise HTTPException(status_code=400, detail="CAPACITY_LIMIT_EXCEEDED")
 
-        # Atomic conditional update to claim request
+        now = datetime.utcnow()
+        # Atomic conditional update to claim request (must be queued and not expired)
         stmt = (
             update(ListenerMatchRequest)
             .where(
                 ListenerMatchRequest.id == req_uuid,
-                ListenerMatchRequest.request_state == "queued"
+                ListenerMatchRequest.request_state == "queued",
+                or_(ListenerMatchRequest.expires_at.is_(None), ListenerMatchRequest.expires_at > now)
             )
             .values(request_state="matched")
         )
         res = await self.db.execute(stmt)
         if res.rowcount == 0:
-            # Check if row exists or was already claimed/cancelled
+            # Check if row exists or was already claimed/cancelled/expired
             chk_stmt = select(ListenerMatchRequest).where(ListenerMatchRequest.id == req_uuid)
             chk_res = await self.db.execute(chk_stmt)
             existing = chk_res.scalar_one_or_none()
@@ -267,6 +304,12 @@ class PeerService(BaseService):
                 raise HTTPException(status_code=404, detail="Match request not found.")
             if existing.request_state == "cancelled":
                 raise HTTPException(status_code=409, detail="REQUEST_CANCELLED")
+            if existing.request_state == "expired" or (existing.expires_at and existing.expires_at < now):
+                if existing.request_state == "queued":
+                    existing.request_state = "expired"
+                    existing.closed_at = now
+                    await self.db.commit()
+                raise HTTPException(status_code=409, detail="REQUEST_EXPIRED")
             raise HTTPException(status_code=409, detail="REQUEST_ALREADY_CLAIMED")
 
         # Fetch the claimed request
@@ -564,7 +607,10 @@ class PeerService(BaseService):
         ]
 
     async def send_message(self, user_id: str, conversation_id: str, payload: PeerMessageCreate) -> dict:
-        c_uuid = uuid.UUID(conversation_id)
+        try:
+            c_uuid = uuid.UUID(str(conversation_id))
+        except (ValueError, AttributeError):
+            c_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, str(conversation_id))
 
         # Check if conversation is open
         conv_res = await self.db.execute(select(PeerConversation).where(PeerConversation.id == c_uuid))
@@ -573,6 +619,29 @@ class PeerService(BaseService):
             raise HTTPException(status_code=404, detail="Conversation not found.")
         if conv.conversation_state == "closed":
             raise HTTPException(status_code=400, detail="CONVERSATION_CLOSED")
+
+        # Deterministic Crisis Sentinel Check (<2ms)
+        is_crisis = bool(CRISIS_REGEX.search(payload.content or ""))
+        safety_case_id = None
+        if is_crisis:
+            try:
+                ops = OperationsService(self.db)
+                sc_res = await ops.create_safety_case({
+                    "member_id": getattr(conv, "member_id", None) or user_id,
+                    "source_type": "peer_chat",
+                    "source_record_id": str(c_uuid),
+                    "trigger_code": "crisis_keyword_detected",
+                    "priority_code": "urgent",
+                    "policy_version": "v1.0",
+                    "jurisdiction": "IN"
+                })
+                safety_case_id = sc_res.get("id")
+                logger.warning(
+                    f"Live Crisis Sentinel tripped in conversation {c_uuid} by user {user_id}. "
+                    f"Created urgent SafetyCase: {safety_case_id}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to create SafetyCase on crisis sentinel trip: {e}")
 
         seq_q = await self.db.execute(select(func.coalesce(func.max(PeerMessage.sequence_no), 0)).where(PeerMessage.conversation_id == c_uuid))
         seq = (seq_q.scalar() or 0) + 1
@@ -598,12 +667,27 @@ class PeerService(BaseService):
             "content": payload.content,
             "sent_at": msg.sent_at.isoformat()
         }
+        if is_crisis:
+            msg_dict["is_crisis"] = True
+            if safety_case_id:
+                msg_dict["safety_case_id"] = safety_case_id
 
         # Broadcast via WebSocket manager to both participants in room
         await manager.broadcast(str(c_uuid), {
             "type": "new_message",
             "message": msg_dict
         })
+
+        if is_crisis:
+            await manager.broadcast(str(c_uuid), {
+                "type": "safety_alert",
+                "severity": "urgent",
+                "alert": "Safety sentinel detected potential crisis in consultation.",
+                "message": "🚨 Immediate Support is Available (24/7 & Confidential): Tele-MANAS (14416) or Dial 112/988",
+                "conversation_id": str(c_uuid),
+                "helplines": ["14416", "112", "988"],
+                "safety_case_id": safety_case_id,
+            })
 
         return msg_dict
 
@@ -796,6 +880,10 @@ class PeerService(BaseService):
             self.db.add(AppPrincipal(user_id=user_id, account_state="active"))
             await self.db.flush()
 
+        online_val = payload.active_now
+        if online_val is None:
+            online_val = payload.is_online if payload.is_online is not None else payload.isOnline
+
         prof_res = await self.db.execute(select(ListenerProfile).where(ListenerProfile.user_id == user_id))
         profile = prof_res.scalar_one_or_none()
         if not profile:
@@ -806,7 +894,7 @@ class PeerService(BaseService):
                 eligibility_state="eligible",
                 capacity_limit=payload.capacity_limit or 3,
                 profile_languages=payload.profile_languages or ["English", "Hindi"],
-                active_now=payload.active_now if payload.active_now is not None else False
+                active_now=online_val if online_val is not None else False
             )
             self.db.add(profile)
         else:
@@ -814,8 +902,8 @@ class PeerService(BaseService):
                 profile.capacity_limit = payload.capacity_limit
             if payload.profile_languages is not None:
                 profile.profile_languages = payload.profile_languages
-            if payload.active_now is not None:
-                profile.active_now = payload.active_now
+            if online_val is not None:
+                profile.active_now = online_val
 
         if payload.display_name:
             m_res = await self.db.execute(select(MemberProfile).where(MemberProfile.user_id == user_id))
@@ -832,7 +920,9 @@ class PeerService(BaseService):
             "capacity_limit": profile.capacity_limit,
             "profile_languages": profile.profile_languages,
             "display_name": payload.display_name,
-            "active_now": profile.active_now
+            "active_now": profile.active_now,
+            "is_online": profile.active_now,
+            "isOnline": profile.active_now
         }
 
 

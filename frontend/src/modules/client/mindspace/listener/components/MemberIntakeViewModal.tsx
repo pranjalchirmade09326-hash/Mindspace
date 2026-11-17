@@ -1,5 +1,18 @@
 "use client";
 
+/**
+ * MemberIntakeViewModal — Pre-Session Member Intake Report for Peer Listeners.
+ *
+ * Layer: modules / client / mindspace / listener / components
+ *
+ * Displays:
+ *   - Member identity alias & preferred communication channel
+ *   - Discussion topic taxonomy & urgency tier
+ *   - Pre-session conversational intake context & extracted distress notes
+ *   - Safeguarding guardrails & active listening recommendations
+ *   - Action to accept & connect directly into consultation room
+ */
+
 import {
   Dialog,
   DialogContent,
@@ -12,28 +25,34 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Activity,
-  CheckCircle2,
   Clock,
   FileText,
   Heart,
   MessageCircle,
+  Mic,
   ShieldCheck,
   Sparkles,
-  User,
+  Video,
 } from "lucide-react";
+
+export interface TMemberIntakeInfo {
+  id: string;
+  displayName: string;
+  topic: string;
+  urgency?: "routine" | "support" | "elevated" | string;
+  waitingMinutes?: number;
+  channel?: "video" | "voice" | "chat" | string;
+  notes?: string;
+  intakeContext?: string;
+  supportTopic?: string;
+  preferredLanguages?: string[];
+  protocolTier?: string;
+}
 
 export interface MemberIntakeViewModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  member?: {
-    id: string;
-    displayName: string;
-    topic: string;
-    urgency: string;
-    waitingMinutes: number;
-    channel: string;
-  } | null;
+  member?: TMemberIntakeInfo | null;
   onStartSession?: () => void;
 }
 
@@ -44,6 +63,27 @@ export function MemberIntakeViewModal({
   onStartSession,
 }: MemberIntakeViewModalProps) {
   if (!member) return null;
+
+  const displayName = member.displayName || "Anonymous Member";
+  const channel = member.channel || "chat";
+  const topic = member.topic || member.supportTopic || "General emotional check-in & active listening";
+  const waitingMins = member.waitingMinutes ?? 3;
+  const urgency = member.urgency || "routine";
+  const languages =
+    member.preferredLanguages && member.preferredLanguages.length > 0
+      ? member.preferredLanguages.join(", ")
+      : "English & Hindi";
+  const intakeContextText =
+    member.intakeContext ||
+    member.notes ||
+    "Member completed an intake check-in expressing high situational stress. Looking for a compassionate peer listener to unpack thoughts without pressure.";
+
+  const urgencyLabel =
+    urgency === "elevated"
+      ? "Elevated Support (Priority)"
+      : urgency === "support"
+      ? "Emotional Support Tier"
+      : "Routine Support";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -56,16 +96,19 @@ export function MemberIntakeViewModal({
             </span>
             <Badge
               variant="outline"
-              className="text-xs border-emerald-600 text-emerald-700 dark:text-emerald-300 capitalize"
+              className="text-xs border-emerald-600 text-emerald-700 dark:text-emerald-300 capitalize gap-1"
             >
-              {member.channel} Consultation
+              {channel === "video" && <Video className="size-3" />}
+              {channel === "voice" && <Mic className="size-3" />}
+              {channel === "chat" && <MessageCircle className="size-3" />}
+              {channel} Consultation
             </Badge>
           </div>
           <DialogTitle className="text-xl font-bold font-serif text-slate-950 dark:text-foreground">
-            {member.displayName}&apos;s Intake & Triage Overview
+            {displayName}&apos;s Intake & Triage Overview
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Waiting {member.waitingMinutes} mins • Protocol Tier: Routine Support
+            Waiting {waitingMins} mins • Protocol Tier: {urgencyLabel}
           </DialogDescription>
         </DialogHeader>
 
@@ -74,11 +117,11 @@ export function MemberIntakeViewModal({
           <div className="flex items-center justify-between p-3.5 rounded-2xl bg-muted/40 border border-border/60">
             <div className="flex items-center gap-3">
               <div className="size-10 rounded-xl bg-[#236B54] text-white flex items-center justify-center font-bold text-sm">
-                {member.displayName[0]}
+                {displayName[0]}
               </div>
               <div>
-                <span className="font-semibold text-sm text-foreground">{member.displayName}</span>
-                <span className="block text-xs text-muted-foreground">Preferred: English & Hindi</span>
+                <span className="font-semibold text-sm text-foreground">{displayName}</span>
+                <span className="block text-xs text-muted-foreground">Preferred: {languages}</span>
               </div>
             </div>
             <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold text-xs">
@@ -95,16 +138,35 @@ export function MemberIntakeViewModal({
                 Initial Conversational Intake Summary
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-4 space-y-2">
+            <CardContent className="p-4 space-y-3">
               <div>
-                <span className="text-muted-foreground block text-[11px]">Primary Concern:</span>
-                <p className="font-semibold text-foreground text-xs mt-0.5">{member.topic}</p>
+                <span className="text-muted-foreground block text-[11px] font-semibold">Primary Concern & Topic:</span>
+                <p className="font-semibold text-foreground text-xs mt-0.5">{topic}</p>
               </div>
               <div>
-                <span className="text-muted-foreground block text-[11px]">Intake Context (Extracted):</span>
+                <span className="text-muted-foreground block text-[11px] font-semibold">Intake Context & Background:</span>
                 <p className="text-muted-foreground text-xs leading-relaxed mt-0.5">
-                  Member completed an intake session expressing high situational stress. Looking for a compassionate peer listener to unpack thoughts without pressure.
+                  {intakeContextText}
                 </p>
+              </div>
+              <div className="flex items-center gap-3 pt-1 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Clock className="size-3 text-amber-500" />
+                  Queued: {waitingMins}m ago
+                </span>
+                <span>•</span>
+                <span className="capitalize">Channel: {channel}</span>
+                <span>•</span>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] ${
+                    urgency === "elevated"
+                      ? "border-amber-500 text-amber-700 bg-amber-50 dark:bg-amber-950/40"
+                      : "border-teal-500 text-teal-700 bg-teal-50 dark:bg-teal-950/40"
+                  }`}
+                >
+                  {urgency}
+                </Badge>
               </div>
             </CardContent>
           </Card>
@@ -116,9 +178,9 @@ export function MemberIntakeViewModal({
               Listener Guidance for this Session:
             </span>
             <p className="text-muted-foreground text-[11px] leading-relaxed">
-              1. Validate their experience with active reflections before offering breathing tools.
-              2. Do not offer clinical diagnoses or pharmaceutical suggestions.
-              3. Maintain confidential boundaries.
+              1. Validate their experience with active reflections before offering breathing tools.<br />
+              2. Do not offer clinical diagnoses or pharmaceutical suggestions.<br />
+              3. Maintain confidential boundaries and red-line safeguarding.
             </p>
           </div>
         </div>

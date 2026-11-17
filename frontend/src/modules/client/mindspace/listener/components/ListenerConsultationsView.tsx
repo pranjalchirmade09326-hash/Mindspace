@@ -25,6 +25,7 @@ import {
   X,
   AlertCircle,
   ArrowRight,
+  Wind,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -103,31 +104,87 @@ export function ListenerConsultationsView() {
   const [filterTab, setFilterTab] = useState<"all" | "waiting" | "confirmed" | "completed">("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Live session queue loading
+  // Caregiver Decompression Cooldown State Machine
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [isDecompressing, setIsDecompressing] = useState(false);
+
   useEffect(() => {
-    async function loadSessions() {
+    if (!isDecompressing || cooldownRemaining <= 0) {
+      if (isDecompressing && cooldownRemaining <= 0) {
+        setIsDecompressing(false);
+        toast.success("Caregiver Decompression Rest Complete", {
+          description: "You are rested and eligible to accept new peer support requests.",
+        });
+      }
+      return;
+    }
+    const timer = setInterval(() => {
+      setCooldownRemaining((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isDecompressing, cooldownRemaining]);
+
+  const canAcceptNewSessions = () => !isDecompressing || cooldownRemaining <= 0;
+
+  // Live session queue loading
+  const loadSessions = async () => {
+    try {
+      // 1. Attempt to fetch active queued match requests
+      let activeItems: TListenerSessionItem[] = [];
       try {
-        const res = await fetch("/api/mindspace/listener/conversations");
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            const mapped: TListenerSessionItem[] = data.map((item: any, idx: number) => ({
-              id: item.id || `sess-d${idx + 1}`,
-              memberName: item.member_name || item.memberName || "Member",
-              topic: item.note || item.topic || "Work stress & active listening support",
-              channel: (item.channel === "voice" || item.channel === "video") ? item.channel : "chat",
-              timeSlot: item.started_at ? new Date(item.started_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Today",
-              status: item.status === "completed" ? "completed" : (item.status === "confirmed" ? "confirmed" : "waiting"),
-              urgency: "routine",
-              waitingMinutes: item.waitingMinutes || (idx + 1) * 3,
+        const activeRes = await fetch("/api/mindspace/listener/match-requests/active");
+        if (activeRes.ok) {
+          const activeData = await activeRes.json();
+          if (Array.isArray(activeData)) {
+            activeItems = activeData.map((item: any, idx: number) => ({
+              id: item.id || `active-${idx}`,
+              memberName: item.member_name || item.memberName || "Anonymous Member",
+              topic: item.support_topic || item.topic || "Work stress & active listening support",
+              channel: (item.preferred_channel === "voice" || item.preferred_channel === "video") ? item.preferred_channel : "chat",
+              timeSlot: `Waiting in queue (${item.waiting_minutes || 0}m)`,
+              status: "waiting",
+              urgency: item.urgency || "routine",
+              waitingMinutes: item.waiting_minutes || 1,
             }));
-            setSessions(mapped);
           }
         }
       } catch {
-        // Fallback to initial
+        // Fallback continues
       }
+
+      // 2. Fetch scheduled / confirmed / historical conversations
+      const res = await fetch("/api/mindspace/listener/conversations");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped: TListenerSessionItem[] = data.map((item: any, idx: number) => ({
+            id: item.id || `sess-d${idx + 1}`,
+            memberName: item.member_name || item.memberName || "Member",
+            topic: item.note || item.topic || "Work stress & active listening support",
+            channel: (item.channel === "voice" || item.channel === "video") ? item.channel : "chat",
+            timeSlot: item.started_at ? new Date(item.started_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Today",
+            status: item.status === "completed" ? "completed" : (item.status === "confirmed" ? "confirmed" : "waiting"),
+            urgency: "routine",
+            waitingMinutes: item.waitingMinutes || (idx + 1) * 3,
+          }));
+
+          // Merge active items with conversation items, avoiding duplicates
+          const existingIds = new Set(activeItems.map((a) => a.id));
+          const nonDup = mapped.filter((m) => !existingIds.has(m.id));
+          const combined = [...activeItems, ...nonDup];
+          setSessions(combined.length > 0 ? combined : INITIAL_SESSIONS);
+          return;
+        }
+      }
+      if (activeItems.length > 0) {
+        setSessions(activeItems);
+      }
+    } catch {
+      // Fallback to initial
     }
+  };
+
+  useEffect(() => {
     loadSessions();
   }, []);
 
@@ -151,6 +208,8 @@ export function ListenerConsultationsView() {
     urgency: string;
     waitingMinutes: number;
     channel: string;
+    notes?: string;
+    intakeContext?: string;
   } | null>(null);
 
   const [selectedSessionForReview, setSelectedSessionForReview] = useState<{
@@ -159,7 +218,88 @@ export function ListenerConsultationsView() {
     topic: string;
   } | null>(null);
 
-  const handleConfirmRequest = (id: string, name: string) => {
+  const handleConfirmRequest = async (id: string, name: string) => {
+    // 1. Mandatory Cooldown check
+    if (!canAcceptNewSessions()) {
+      toast.warning("Mandatory Caregiver Cooldown in Progress", {
+        description: `Please wait ${cooldownRemaining}s to complete decompression rest before claiming new sessions.`,
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/mindspace/listener/offers/${id}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel: "chat" }),
+      });
+
+      if (res.status === 200) {
+        const data = await res.json();
+        const conversationId = data.conversation_id || id;
+        setSessions((prev) =>
+          prev.map((s) => (s.id === id ? { ...s, status: "confirmed", id: conversationId } : s))
+        );
+        toast.success(`Request Confirmed for ${name}`, {
+          description: "Match claimed successfully. Launching consultation room...",
+        });
+        const found = sessions.find((s) => s.id === id);
+        setActiveCallSession({
+          id: conversationId,
+          memberName: name,
+          topic: found?.topic || "Active listening support",
+          channel: found?.channel || "chat",
+        });
+        setIsRoomModalOpen(true);
+        return;
+      }
+
+      if (res.status === 409) {
+        const err = await res.json().catch(() => ({}));
+        const detail = err.detail || "";
+        if (detail.includes("CLAIMED")) {
+          toast.error("Request Already Claimed", {
+            description: "Another peer listener in your pod has accepted this request. Refreshing queue...",
+          });
+        } else if (detail.includes("CANCELLED")) {
+          toast.info("Request Cancelled", {
+            description: "The member cancelled this match request. Refreshing queue...",
+          });
+        } else if (detail.includes("EXPIRED")) {
+          toast.info("Request Expired", {
+            description: "This match request has expired. Refreshing queue...",
+          });
+        } else {
+          toast.warning("Request Unavailable", {
+            description: "This request is no longer available in the queue.",
+          });
+        }
+        loadSessions();
+        return;
+      }
+
+      if (res.status === 400) {
+        const err = await res.json().catch(() => ({}));
+        const detail = err.detail || "";
+        if (detail.includes("CAPACITY_LIMIT_EXCEEDED") || detail.includes("LISTENER_AT_CAPACITY")) {
+          toast.error("Workload Capacity Exceeded", {
+            description: "You have reached your maximum active concurrent sessions. Please complete open sessions first.",
+          });
+        } else if (detail.includes("LISTENER_OFFLINE")) {
+          toast.warning("Listener Offline", {
+            description: "Please toggle your status to Active/Online before accepting requests.",
+          });
+        } else {
+          toast.error("Unable to Accept Request", {
+            description: detail || "Invalid request.",
+          });
+        }
+        return;
+      }
+    } catch {
+      // Offline fallback in tests / dev
+    }
+
     setSessions((prev) =>
       prev.map((s) => (s.id === id ? { ...s, status: "confirmed" } : s))
     );
@@ -247,6 +387,33 @@ export function ListenerConsultationsView() {
           <p className="text-[11px] text-muted-foreground">Empathetic listening</p>
         </Card>
       </div>
+
+      {/* ── Caregiver Decompression Cooldown Banner (60s Mandatory Rest) ── */}
+      {isDecompressing && cooldownRemaining > 0 && (
+        <Card className="p-4 border-teal-500/40 bg-teal-500/10 dark:bg-teal-950/30 rounded-2xl flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <div className="size-10 rounded-xl bg-teal-500/20 text-teal-700 dark:text-teal-300 flex items-center justify-center font-bold">
+              <Wind className="size-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-teal-700 text-white text-[10px] px-2 py-0.5 rounded-full font-mono">
+                  {cooldownRemaining}s
+                </Badge>
+                <h4 className="text-sm font-bold text-foreground">
+                  Mandatory Caregiver Decompression Rest Active
+                </h4>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Volunteer safeguarding: claiming new sessions is paused during this 60-second recovery window.
+              </p>
+            </div>
+          </div>
+          <Badge variant="outline" className="text-xs font-mono border-teal-500 text-teal-700 dark:text-teal-300">
+            Cooldown: {cooldownRemaining}s
+          </Badge>
+        </Card>
+      )}
 
       {/* ── Consultations Roster Table Card ── */}
       <Card className="p-5 border-border/60">
@@ -385,8 +552,14 @@ export function ListenerConsultationsView() {
                       {session.status === "waiting" && (
                         <Button
                           size="sm"
+                          disabled={!canAcceptNewSessions()}
                           onClick={() => handleConfirmRequest(session.id, session.memberName)}
-                          className="h-8 text-xs rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-1 px-2.5"
+                          className={`h-8 text-xs rounded-xl gap-1 px-2.5 transition-all ${
+                            !canAcceptNewSessions()
+                              ? "bg-slate-300 dark:bg-slate-800 text-muted-foreground cursor-not-allowed opacity-60"
+                              : "bg-blue-600 hover:bg-blue-700 text-white"
+                          }`}
+                          title={!canAcceptNewSessions() ? `Cooldown active (${cooldownRemaining}s)` : "Accept and claim member request"}
                         >
                           <Check className="size-3.5" />
                           <span>Accept</span>
@@ -442,9 +615,11 @@ export function ListenerConsultationsView() {
             setSessions((prev) =>
               prev.map((s) => (s.id === activeCallSession.id ? { ...s, status: "completed" } : s))
             );
-            // Prompt SOAP review
+            // Commencing 60-second mandatory caregiver cooldown
+            setCooldownRemaining(60);
+            setIsDecompressing(true);
             toast.info("Consultation Ended", {
-              description: "Please complete post-session SOAP documentation for this member.",
+              description: "Session closed. Commencing 60-second mandatory caregiver decompression rest.",
             });
           }
         }}

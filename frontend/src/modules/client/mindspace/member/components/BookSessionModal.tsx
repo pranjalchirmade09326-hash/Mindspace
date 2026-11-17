@@ -23,8 +23,14 @@ import {
   UserCheck,
   Video,
   CheckCircle2,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  VALID_TOPICS,
+  SupportTopic,
+  SupportChannel,
+} from "../domain/entities/MemberQueue";
 
 export interface BookSessionModalProps {
   open?: boolean;
@@ -95,15 +101,18 @@ export function BookSessionModal({
     if (!val) onClose?.();
   };
   const [selectedListener, setSelectedListener] = useState(AVAILABLE_LISTENERS[0]);
+  const [selectedTopic, setSelectedTopic] = useState<SupportTopic>("stress");
   const [selectedDate, setSelectedDate] = useState("Today, Nov 9");
   const [selectedSlot, setSelectedSlot] = useState("06:00 PM");
   const [channel, setChannel] = useState<"voice" | "video" | "chat">("voice");
   const [topic, setTopic] = useState("General wellbeing and stress relief reflection");
+  const [consentShareIntake, setConsentShareIntake] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleConfirm = async () => {
     setIsSubmitting(true);
     try {
+      // 1. Initiate Session Booking
       const res = await fetch("/api/mindspace/member/peer-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -112,9 +121,25 @@ export function BookSessionModal({
           listener_name: `${selectedListener.name} (${selectedListener.role.split(" ")[0]})`,
           channel: channel === "chat" ? "chat" : channel === "video" ? "video" : "voice",
           note: topic,
+          support_topic: selectedTopic,
+          languages: selectedListener.languages || ["en"],
+          consent_share_intake: consentShareIntake,
           scheduled_slot: `${selectedDate} at ${selectedSlot}`,
         }),
       });
+
+      // 2. Also register match request into backend queue
+      fetch("/api/mindspace/member/match-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          support_topic: selectedTopic,
+          preferred_channel: channel,
+          preferred_languages: selectedListener.languages || ["en"],
+          consent_share_intake: consentShareIntake,
+          notes: topic,
+        }),
+      }).catch(() => {});
 
       if (!res.ok) {
         throw new Error(`Server returned ${res.status}`);
@@ -133,7 +158,7 @@ export function BookSessionModal({
       onSuccess?.();
       handleOpenChange(false);
       toast.success(`Session Confirmed & Saved to PostgreSQL!`, {
-        description: `Scheduled with ${selectedListener.name} via ${channel.toUpperCase()}. You can join the room when ready.`,
+        description: `Scheduled with ${selectedListener.name} via ${channel.toUpperCase()} (${selectedTopic}). You can join the room when ready.`,
         duration: 4500,
       });
     } catch (err) {
@@ -149,7 +174,7 @@ export function BookSessionModal({
       onSessionBooked?.(fallbackSession);
       onSuccess?.();
       handleOpenChange(false);
-      
+
       toast.success(`Session Scheduled with ${selectedListener.name}!`);
     } finally {
       setIsSubmitting(false);
@@ -215,10 +240,36 @@ export function BookSessionModal({
             </div>
           </div>
 
-          {/* 2. Communication Channel */}
+          {/* 2. Support Topic Selection */}
           <div className="space-y-2">
             <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              2. Session Format
+              2. Support Topic Taxonomy
+            </Label>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+              {VALID_TOPICS.map((top) => {
+                const isSelected = selectedTopic === top;
+                return (
+                  <button
+                    key={top}
+                    type="button"
+                    onClick={() => setSelectedTopic(top)}
+                    className={`py-2 px-1 rounded-lg border text-xs capitalize transition-all ${
+                      isSelected
+                        ? "border-emerald-600 bg-emerald-600 text-white font-bold shadow-xs"
+                        : "border-border/60 hover:bg-muted/40 text-muted-foreground"
+                    }`}
+                  >
+                    {top}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 3. Communication Channel */}
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              3. Session Format
             </Label>
             <div className="grid grid-cols-3 gap-2">
               <button
@@ -262,11 +313,11 @@ export function BookSessionModal({
             </div>
           </div>
 
-          {/* 3. Slot Picker */}
+          {/* 4. Slot Picker */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                3. Choose Time Slot
+                4. Choose Time Slot
               </Label>
               <span className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
                 {selectedDate}
@@ -293,10 +344,10 @@ export function BookSessionModal({
             </div>
           </div>
 
-          {/* 4. Session Note / Topic */}
+          {/* 5. Session Note / Topic */}
           <div className="space-y-1.5">
             <Label htmlFor="topic" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              4. What would you like to discuss? (Confidential)
+              5. What would you like to discuss? (Confidential)
             </Label>
             <Input
               id="topic"
@@ -305,6 +356,23 @@ export function BookSessionModal({
               placeholder="e.g., Feeling anxious about my upcoming exam / work burnout"
               className="h-10 rounded-xl text-xs"
             />
+          </div>
+
+          {/* 6. Consent to Share Intake Context */}
+          <div className="flex items-start gap-2.5 p-3 rounded-2xl border border-emerald-900/20 bg-emerald-50/50 dark:bg-emerald-950/20">
+            <input
+              type="checkbox"
+              id="consentShareIntake"
+              checked={consentShareIntake}
+              onChange={(e) => setConsentShareIntake(e.target.checked)}
+              className="mt-0.5 size-4 rounded border-border text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+            />
+            <label htmlFor="consentShareIntake" className="text-xs text-muted-foreground cursor-pointer leading-relaxed">
+              <span className="font-semibold text-foreground block">
+                Share non-clinical intake summary with peer listener (consent_share_intake)
+              </span>
+              Allows your peer listener to understand your emotional context before the call starts. You can revoke this anytime.
+            </label>
           </div>
         </div>
 

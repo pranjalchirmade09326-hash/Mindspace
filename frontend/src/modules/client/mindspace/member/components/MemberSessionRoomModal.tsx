@@ -6,10 +6,11 @@
  * Implements:
  *   - Pre-Call Handshake & Media Check (Connecting / Ringing State)
  *   - In-Call Stage: Video/Audio feed, PiP, Call Timer (00:00+), Grounding Breathwork (4-7-8)
+ *   - Real-Time WebSocket Messaging & WebRTC Signaling (/api/v1/peer/ws/{conversation_id}) with Resilient Offline Fallback
  *   - In-Call Interactive Dialogue & Live Text Chat with Dynamic Spoken Captions & Quick Chips
- *   - Safety Sentinel Circuit Breaker (<2ms crisis monitoring)
+ *   - Deterministic Safety Sentinel Circuit Breaker (<2ms regex tripwire) with Tele-MANAS (14416), 112, 988 Crisis Cards
  *   - Post-Call Wellbeing Reflection & Debrief (Post-call Mood check-in, Star rating, Encrypted Journal sync)
- *   - Complete PostgreSQL Integration (/api/mindspace/member/conversations/[id]/close & /api/mindspace/member/moods)
+ *   - Complete PostgreSQL Integration (/api/mindspace/member/conversations/[id]/close, /moods, /journal)
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -31,6 +32,7 @@ import {
   PhoneCall,
   Radio,
   ShieldCheck,
+  ShieldAlert,
   Sparkles,
   Video,
   VideoOff,
@@ -48,6 +50,8 @@ import {
   RefreshCw,
   X,
   MessageSquare,
+  AlertTriangle,
+  Phone,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -96,6 +100,13 @@ const QUICK_PROMPTS = [
   },
 ];
 
+// Deterministic Crisis Sentinel Regex (<2ms pre-inference tripwire)
+export const CRISIS_REGEX =
+  /\b(suicide|kill\s+myself|end\s+my\s+life|want\s+to\s+die|hang\s+myself|shoot\s+myself|slit\s+my\s+wrists?|hurt\s+myself|self[- ]*harm|overdose)\b/i;
+
+export const TELE_MANAS_HELPLINE = "14416 / +91 9999 666 555";
+export const US_988_HELPLINE = "988";
+
 export function MemberSessionRoomModal({
   open,
   isOpen,
@@ -127,15 +138,25 @@ export function MemberSessionRoomModal({
   // Right panel tabs: "transcript" | "chat"
   const [activeTab, setActiveTab] = useState<"transcript" | "chat">("transcript");
 
-  // In-call Grounding Breathwork Pacer overlay
+  // In-call Grounding Breathwork Pacer overlay (4-7-8 rhythm)
   const [isBreathworkActive, setIsBreathworkActive] = useState(false);
   const [breathPhase, setBreathPhase] = useState<"Inhale" | "Hold" | "Exhale">("Inhale");
   const [breathCount, setBreathCount] = useState(4);
+  const [completedBreathCycles, setCompletedBreathCycles] = useState(0);
 
   // Dynamic Spoken Dialogue & In-Call Chat
   const [dialogue, setDialogue] = useState<DialogueEntry[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isListenerSpeaking, setIsListenerSpeaking] = useState(false);
+  const [sequenceNumber, setSequenceNumber] = useState(0);
+
+  // WebSocket connection & live status
+  const wsRef = useRef<WebSocket | null>(null);
+  const [wsConnected, setWsConnected] = useState(false);
+
+  // Crisis Sentinel State
+  const [isCrisisTriggered, setIsCrisisTriggered] = useState(false);
+  const [crisisMatchedKeyword, setCrisisMatchedKeyword] = useState<string | null>(null);
 
   // Auto-scroll refs
   const dialogueEndRef = useRef<HTMLDivElement>(null);
@@ -161,6 +182,10 @@ export function MemberSessionRoomModal({
       setIsVideoOn(session?.channel !== "voice");
       setIsBreathworkActive(false);
       setIsListenerSpeaking(false);
+      setCompletedBreathCycles(0);
+      setIsCrisisTriggered(false);
+      setCrisisMatchedKeyword(null);
+      setSequenceNumber(3);
       setDialogue([
         {
           id: "d-1",
@@ -202,6 +227,105 @@ export function MemberSessionRoomModal({
     }
   }, [isModalOpen, session?.id, session?.channel, listenerShortName]);
 
+  // WebSocket Connection Management for Live Room
+  useEffect(() => {
+    if (!isModalOpen || stage !== "active" || !session?.id) {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+        setWsConnected(false);
+      }
+      return;
+    }
+
+    const convId = session.id;
+    let wsUrl = "";
+
+    if (typeof window !== "undefined") {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const hostname = window.location.hostname || "localhost";
+      const port = process.env.NEXT_PUBLIC_FASTAPI_PORT || "8080";
+      wsUrl = `${protocol}//${hostname}:${port}/api/v1/peer/ws/${convId}`;
+    }
+
+    let ws: WebSocket | null = null;
+    let pingTimer: NodeJS.Timeout | null = null;
+
+    try {
+      if (typeof WebSocket !== "undefined" && wsUrl) {
+        ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          setWsConnected(true);
+          // Ping heartbeat every 20s
+          pingTimer = setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              try {
+                ws.send(JSON.stringify({ type: "ping" }));
+              } catch {}
+            }
+          }, 20000);
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === "new_message" && data.message) {
+              const msg = data.message;
+              if (msg.sender_user_id !== "usr-demo-member-01" && msg.sender_role !== "member") {
+                setDialogue((prev) => [
+                  ...prev,
+                  {
+                    id: msg.id || `l-${Date.now()}`,
+                    speaker: "listener",
+                    speakerName: listenerShortName,
+                    text: msg.content,
+                    time: msg.sent_at
+                      ? new Date(msg.sent_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                      : new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                  },
+                ]);
+                setIsListenerSpeaking(false);
+              }
+            } else if (data.type === "session_closed") {
+              toast.info("Session Closed by Peer", {
+                description: "Consultation concluded. Moving to reflection.",
+              });
+              setStage("reflection");
+            } else if (data.type === "safety_alert") {
+              setIsCrisisTriggered(true);
+            }
+          } catch {}
+        };
+
+        ws.onerror = () => {
+          setWsConnected(false);
+        };
+
+        ws.onclose = () => {
+          setWsConnected(false);
+        };
+      }
+    } catch {
+      setWsConnected(false);
+    }
+
+    return () => {
+      if (pingTimer) clearInterval(pingTimer);
+      if (ws) {
+        if (ws.readyState === WebSocket.OPEN) {
+          try {
+            ws.send(JSON.stringify({ type: "session_closed", conversation_id: convId }));
+          } catch {}
+        }
+        ws.close();
+        wsRef.current = null;
+      }
+      setWsConnected(false);
+    };
+  }, [isModalOpen, stage, session?.id, listenerShortName]);
+
   // Scroll to bottom whenever dialogue updates
   useEffect(() => {
     if (activeTab === "transcript") {
@@ -220,7 +344,7 @@ export function MemberSessionRoomModal({
     return () => clearInterval(interval);
   }, [isModalOpen, stage]);
 
-  // Somatic 4-7-8 breathwork cycle runner
+  // Somatic 4-7-8 breathwork cycle runner (Inhale 4s -> Hold 7s -> Exhale 8s)
   useEffect(() => {
     if (!isBreathworkActive || stage !== "active") return;
 
@@ -235,6 +359,7 @@ export function MemberSessionRoomModal({
           setBreathPhase("Exhale");
           setBreathCount(8);
           timeoutId = setTimeout(() => {
+            setCompletedBreathCycles((prev) => prev + 1);
             runCycle();
           }, 8000);
         }, 7000);
@@ -260,15 +385,50 @@ export function MemberSessionRoomModal({
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Dispatch interactive member message and generate empathetic listener voice caption
+  // Dispatch interactive member message with crisis monitoring and WebSocket / fallback relay
   const handleUserSubmission = (textToSend: string, triggerBreath?: boolean) => {
     const cleanedText = textToSend.trim();
     if (!cleanedText) return;
 
+    // 1. Deterministic Crisis Sentinel Check (<2ms regex tripwire)
+    const startTime = performance.now();
+    const match = CRISIS_REGEX.exec(cleanedText);
+    const latencyMs = performance.now() - startTime;
+
+    if (match) {
+      setIsCrisisTriggered(true);
+      setCrisisMatchedKeyword(match[0]);
+
+      // Non-blocking escalation dispatch to safety cases & conduct reports
+      fetch("/api/mindspace/safety/cases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_type: "peer_chat",
+          priority_code: "urgent",
+          category: "crisis_intervention",
+          notes: `Member reported acute distress: "${cleanedText}". Latency: ${latencyMs.toFixed(2)}ms`,
+        }),
+      }).catch(() => {});
+
+      fetch("/api/mindspace/member/conduct-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: session?.id || `live-${Date.now()}`,
+          severity: "critical",
+          reason: "Crisis Sentinel Tripwire",
+          notes: `Self-harm or suicide keyword detected: "${match[0]}"`,
+        }),
+      }).catch(() => {});
+    }
+
     const currentTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const nextSeq = sequenceNumber + 1;
+    setSequenceNumber(nextSeq);
 
     const userEntry: DialogueEntry = {
-      id: `u-${Date.now()}`,
+      id: `u-${Date.now()}-${nextSeq}`,
       speaker: "member",
       speakerName: "You (Member)",
       text: cleanedText,
@@ -282,43 +442,77 @@ export function MemberSessionRoomModal({
       setIsBreathworkActive(true);
     }
 
-    // Indicate listener is processing and speaking
-    setIsListenerSpeaking(true);
-
-    setTimeout(() => {
-      let responseText = "";
-      if (triggerBreath) {
-        responseText = `Let's do that right now. Follow the rhythm of the circle — breathe in gently through your nose, hold with stillness, and let out a long calming sigh.`;
-      } else if (cleanedText.toLowerCase().includes("overwhelm") || cleanedText.toLowerCase().includes("stress")) {
-        responseText = `I hear how heavy that is. Carrying all of that alone is draining. Remember you don't have to fix everything right now — just being here is a courageous step.`;
-      } else if (cleanedText.toLowerCase().includes("sleep") || cleanedText.toLowerCase().includes("racing")) {
-        responseText = `When our mind races at night, it's often trying to process unfinished tension. Let's ground your feet into the floor and release your shoulders down.`;
-      } else if (cleanedText.toLowerCase().includes("thank") || cleanedText.toLowerCase().includes("lighter")) {
-        responseText = `You're so welcome. Your willingness to speak your truth is so powerful. Notice this sense of release in your chest right now.`;
-      } else {
-        const fallbacks = [
-          "Thank you for sharing that with me. I'm holding space for everything you feel without judgment.",
-          "I hear you completely. Take all the time you need — there is no rush here.",
-          "That makes total sense given what you've been navigating. Let's take one steady breath together.",
-        ];
-        responseText = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+    // 2. Transmit via live WebSocket if available
+    let sentOverWebSocket = false;
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(
+          JSON.stringify({
+            type: "chat_message",
+            content: cleanedText,
+            sequence_no: nextSeq,
+            sender_id: "usr-demo-member-01",
+          })
+        );
+        sentOverWebSocket = true;
+      } catch {
+        sentOverWebSocket = false;
       }
+    }
 
-      const listenerEntry: DialogueEntry = {
-        id: `l-${Date.now()}`,
-        speaker: "listener",
-        speakerName: listenerShortName,
-        text: responseText,
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      };
+    // 3. Resilient Fallback: If offline or mock test environment, generate simulated empathetic reply
+    if (!sentOverWebSocket) {
+      setIsListenerSpeaking(true);
 
-      setDialogue((prev) => [...prev, listenerEntry]);
-      setIsListenerSpeaking(false);
-    }, 1400);
+      setTimeout(() => {
+        let responseText = "";
+        if (match) {
+          responseText = `I hear how much pain you are holding right now, and I want you to know you are not alone. Please remember there is 24/7 immediate support available via Tele-MANAS (14416) and 112/988. I am staying right here with you.`;
+        } else if (triggerBreath) {
+          responseText = `Let's do that right now. Follow the rhythm of the circle — breathe in gently through your nose, hold with stillness, and let out a long calming sigh.`;
+        } else if (cleanedText.toLowerCase().includes("overwhelm") || cleanedText.toLowerCase().includes("stress")) {
+          responseText = `I hear how heavy that is. Carrying all of that alone is draining. Remember you don't have to fix everything right now — just being here is a courageous step.`;
+        } else if (cleanedText.toLowerCase().includes("sleep") || cleanedText.toLowerCase().includes("racing")) {
+          responseText = `When our mind races at night, it's often trying to process unfinished tension. Let's ground your feet into the floor and release your shoulders down.`;
+        } else if (cleanedText.toLowerCase().includes("thank") || cleanedText.toLowerCase().includes("lighter")) {
+          responseText = `You're so welcome. Your willingness to speak your truth is so powerful. Notice this sense of release in your chest right now.`;
+        } else {
+          const fallbacks = [
+            "Thank you for sharing that with me. I'm holding space for everything you feel without judgment.",
+            "I hear you completely. Take all the time you need — there is no rush here.",
+            "That makes total sense given what you've been navigating. Let's take one steady breath together.",
+          ];
+          responseText = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+        }
+
+        const listenerEntry: DialogueEntry = {
+          id: `l-${Date.now()}`,
+          speaker: "listener",
+          speakerName: listenerShortName,
+          text: responseText,
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+
+        setDialogue((prev) => [...prev, listenerEntry]);
+        setIsListenerSpeaking(false);
+      }, 1400);
+    }
   };
 
   // Trigger End of Call -> Advances to Reflection Stage
   const handleEndCallClick = () => {
+    // Notify peer over WebSocket
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && session?.id) {
+      try {
+        wsRef.current.send(
+          JSON.stringify({
+            type: "session_closed",
+            conversation_id: session.id,
+          })
+        );
+      } catch {}
+    }
+
     setStage("reflection");
     setIsBreathworkActive(false);
     setIsListenerSpeaking(false);
@@ -347,11 +541,14 @@ export function MemberSessionRoomModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mood_score: postMoodRating,
+          scale_value: postMoodRating,
+          mood_code: postMoodRating >= 8 ? "peaceful" : postMoodRating >= 6 ? "calm" : postMoodRating >= 4 ? "neutral" : "stressed",
           valence: postMoodRating >= 7 ? "positive" : postMoodRating >= 5 ? "neutral" : "negative",
           arousal: "calm",
           primary_emotion: postMoodLabel,
           energy_level: 6,
           notes: `Post-consultation reflection with ${listenerShortName}. Rating: ${starRating}★. ${gratitudeNote}`.trim(),
+          note: `Post-consultation reflection with ${listenerShortName}. Rating: ${starRating}★. ${gratitudeNote}`.trim(),
         }),
       }).catch((e) => console.warn("Backend mood save error:", e));
 
@@ -365,6 +562,7 @@ export function MemberSessionRoomModal({
             body: `Completed a ${formatTimer(seconds)} peer support session. Post-session feeling: ${postMoodLabel} (${postMoodRating}/10). Notes: ${gratitudeNote || "Felt heard and grounded."}`,
             mood_tag: postMoodLabel,
             category: "peer_session",
+            visibility: "private",
           }),
         }).catch((e) => console.warn("Backend journal error:", e));
       }
@@ -514,6 +712,11 @@ export function MemberSessionRoomModal({
                     <Badge variant="outline" className="text-[10px] bg-emerald-950/60 text-emerald-400 border-emerald-800">
                       Live Consultation
                     </Badge>
+                    {wsConnected && (
+                      <Badge variant="outline" className="text-[10px] bg-teal-950/60 text-teal-300 border-teal-800">
+                        WebSocket Active
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-xs text-slate-400">{session?.note || "General wellbeing and stress relief reflection"}</p>
                 </div>
@@ -548,6 +751,64 @@ export function MemberSessionRoomModal({
               </div>
             </div>
 
+            {/* Deterministic Crisis Sentinel Emergency Helpline Card (When Triggered) */}
+            {isCrisisTriggered && (
+              <div className="p-4 mx-6 mt-3 rounded-2xl bg-rose-950/90 border border-rose-600/80 text-white animate-in fade-in slide-in-from-top-2 duration-300 shadow-xl shadow-rose-950/60">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-rose-600 text-white">
+                      <ShieldAlert className="size-5 animate-pulse" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-rose-100 flex items-center gap-2">
+                        <span>24/7 Immediate Crisis Support Available</span>
+                        <Badge variant="destructive" className="text-[10px] uppercase font-mono">
+                          Sentinel Active (&lt;2ms)
+                        </Badge>
+                      </h4>
+                      <p className="text-xs text-rose-200/90 mt-0.5">
+                        Your life and wellbeing are what matter most. Free, confidential, 24/7 emergency support is standing by right now.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCrisisTriggered(false)}
+                    className="text-rose-400 hover:text-white text-xs p-1"
+                    title="Dismiss Banner"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-3 pt-3 border-t border-rose-800/60">
+                  <div className="p-2.5 rounded-xl bg-slate-950/70 border border-rose-800/40">
+                    <span className="text-[10px] text-rose-300 uppercase font-bold tracking-wider block">India Tele-MANAS</span>
+                    <a href="tel:14416" className="text-sm font-mono font-bold text-white hover:underline block mt-0.5">
+                      14416 / 1800-891-4416
+                    </a>
+                    <span className="text-[10px] text-slate-400">Govt. of India 24/7 Crisis Helpline</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-950/70 border border-rose-800/40">
+                    <span className="text-[10px] text-rose-300 uppercase font-bold tracking-wider block">National Emergency</span>
+                    <a href="tel:112" className="text-sm font-mono font-bold text-white hover:underline block mt-0.5">
+                      112
+                    </a>
+                    <span className="text-[10px] text-slate-400">Police / Medical Ambulance</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-950/70 border border-rose-800/40">
+                    <span className="text-[10px] text-rose-300 uppercase font-bold tracking-wider block">Suicide & Crisis Lifeline</span>
+                    <a href="tel:988" className="text-sm font-mono font-bold text-white hover:underline block mt-0.5">
+                      988
+                    </a>
+                    <span className="text-[10px] text-slate-400">US & International 24/7 Lifeline</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Main Stage Grid: Video Feed + Live Dialogue / Chat */}
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 min-h-0">
               {/* Video / Call Center (8 Cols) */}
@@ -576,14 +837,19 @@ export function MemberSessionRoomModal({
                       <p className="text-xs text-slate-300 max-w-xs">
                         Follow the circle gently. Inhale deep through your nose (4s), hold gently (7s), exhale slow through mouth (8s).
                       </p>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setIsBreathworkActive(false)}
-                        className="mt-3 text-xs text-slate-400 hover:text-white"
-                      >
-                        Hide Pacer
-                      </Button>
+                      <div className="flex items-center gap-3 mt-3">
+                        <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-800">
+                          Cycles Completed: {completedBreathCycles}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setIsBreathworkActive(false)}
+                          className="text-xs text-slate-400 hover:text-white h-7 px-2"
+                        >
+                          Hide Pacer
+                        </Button>
+                      </div>
                     </div>
                   )}
 
@@ -712,7 +978,7 @@ export function MemberSessionRoomModal({
                     {activeTab === "transcript" ? "Spoken Captions" : "Private Chat"}
                   </span>
                   <span className="text-[10px] text-emerald-400 font-mono">
-                    {isListenerSpeaking ? "Transcribing..." : "Real-Time"}
+                    {isListenerSpeaking ? "Transcribing..." : wsConnected ? "WebSocket Live" : "Active"}
                   </span>
                 </div>
 
@@ -819,9 +1085,17 @@ export function MemberSessionRoomModal({
                 </div>
 
                 {/* Safety Circuit Breaker Status */}
-                <div className="mt-3 p-2.5 rounded-xl border border-emerald-900/40 bg-emerald-950/20 text-[11px] text-emerald-300 flex items-center gap-2">
-                  <ShieldCheck className="size-4 shrink-0 text-emerald-400" />
-                  <span>Clinical Sentinel: Status Clean. Crisis escalation idle.</span>
+                <div className={`mt-3 p-2.5 rounded-xl border text-[11px] flex items-center gap-2 transition-all ${
+                  isCrisisTriggered
+                    ? "border-rose-600/80 bg-rose-950/40 text-rose-200"
+                    : "border-emerald-900/40 bg-emerald-950/20 text-emerald-300"
+                }`}>
+                  <ShieldCheck className={`size-4 shrink-0 ${isCrisisTriggered ? "text-rose-400" : "text-emerald-400"}`} />
+                  <span>
+                    {isCrisisTriggered
+                      ? "Clinical Sentinel: Crisis Safeguards Active • Helplines Shown • Incident Dispatched"
+                      : "Clinical Sentinel: Status Clean. Crisis escalation idle (<2ms monitoring active)."}
+                  </span>
                 </div>
               </div>
             </div>
@@ -930,7 +1204,7 @@ export function MemberSessionRoomModal({
                   id="journalSync"
                   checked={syncToJournal}
                   onChange={(e) => setSyncToJournal(e.target.checked)}
-                  className="mt-1 size-4 rounded border-slate-700 bg-slate-950 text-emerald-600 focus:ring-emerald-500"
+                  className="mt-1 size-4 rounded border-slate-700 bg-slate-950 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                 />
                 <label htmlFor="journalSync" className="text-xs text-slate-300 cursor-pointer">
                   <span className="font-semibold block text-slate-200">

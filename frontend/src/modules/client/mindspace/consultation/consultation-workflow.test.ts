@@ -177,7 +177,7 @@ export class BreathworkPacer {
 
 // Deterministic Crisis Sentinel (<2ms regex tripwire)
 export const CRISIS_REGEX =
-  /\b(suicide|kill\s+myself|end\s+my\s+life|want\s+to\s+die|hang\s+myself|shoot\s+myself|slit\s+my\s+wrists|hurt\s+myself|self\s*harm)\b/i;
+  /\b(suicide|kill\s+myself|end\s+my\s+life|want\s+to\s+die|hang\s+myself|shoot\s+myself|slit\s+my\s+wrists?|hurt\s+myself|self[- ]*harm|overdose)\b/i;
 
 export const TELE_MANAS_HELPLINE = "14416 / +91 9999 666 555";
 export const US_988_HELPLINE = "988";
@@ -720,6 +720,31 @@ describe("Consultation Workflow Integration & E2E Tests (Tiers 1-3)", () => {
     it("T1.5: displays verified 988 emergency hotline", () => {
       const res = checkCrisisSentinel("I want to hurt myself");
       expect(res.helplines?.crisisLine988).toBe("988");
+    });
+
+    it("T1.6: intercepts hyphenated 'self-harm', 'self harm', and 'selfharm'", () => {
+      const resHyphen = checkCrisisSentinel("I have been struggling with self-harm urges.");
+      const resSpace = checkCrisisSentinel("I am dealing with self harm.");
+      const resJoined = checkCrisisSentinel("Thoughts about selfharm.");
+      expect(resHyphen.isCrisis).toBe(true);
+      expect(resHyphen.matchedPhrase?.toLowerCase()).toBe("self-harm");
+      expect(resSpace.isCrisis).toBe(true);
+      expect(resJoined.isCrisis).toBe(true);
+    });
+
+    it("T1.7: intercepts singular 'slit my wrist' and plural 'slit my wrists'", () => {
+      const resSingular = checkCrisisSentinel("thinking about slit my wrist");
+      const resPlural = checkCrisisSentinel("I might slit my wrists tonight");
+      expect(resSingular.isCrisis).toBe(true);
+      expect(resSingular.matchedPhrase?.toLowerCase()).toBe("slit my wrist");
+      expect(resPlural.isCrisis).toBe(true);
+      expect(resPlural.matchedPhrase?.toLowerCase()).toBe("slit my wrists");
+    });
+
+    it("T1.8: intercepts 'overdose' crisis keyword aligned with backend", () => {
+      const res = checkCrisisSentinel("I am terrified I might overdose on pills.");
+      expect(res.isCrisis).toBe(true);
+      expect(res.matchedPhrase?.toLowerCase()).toBe("overdose");
     });
 
     // Tier 2: Boundaries & Latency Benchmark

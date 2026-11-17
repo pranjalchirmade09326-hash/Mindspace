@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -8,6 +8,24 @@ class MatchRequestCreate(BaseModel):
     preferred_languages: Optional[List[str]] = Field(default_factory=lambda: ["en"])
     notes: Optional[str] = None
     preferences: Optional[Dict[str, Any]] = None
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "channel" in data and "preferred_channel" not in data:
+                data["preferred_channel"] = data["channel"]
+            if "preferredChannel" in data and "preferred_channel" not in data:
+                data["preferred_channel"] = data["preferredChannel"]
+            if "languages" in data and "preferred_languages" not in data:
+                data["preferred_languages"] = data["languages"]
+            if "preferredLanguages" in data and "preferred_languages" not in data:
+                data["preferred_languages"] = data["preferredLanguages"]
+            if "supportTopic" in data and "support_topic" not in data:
+                data["support_topic"] = data["supportTopic"]
+        return data
 
 class MatchRequestResponse(BaseModel):
     id: str
@@ -89,6 +107,48 @@ class SoapNoteCreate(BaseModel):
 
 class ListenerProfileUpdate(BaseModel):
     capacity_limit: Optional[int] = None
+    capacityLimit: Optional[int] = None
+    profile_languages: Optional[List[str]] = None
+    profileLanguages: Optional[List[str]] = None
+    display_name: Optional[str] = None
+    displayName: Optional[str] = None
+    active_now: Optional[bool] = None
+    activeNow: Optional[bool] = None
+    is_online: Optional[bool] = None
+    isOnline: Optional[bool] = None
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    @model_validator(mode="before")
+    @classmethod
+    def map_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Map isOnline / is_online / activeNow to active_now if active_now is None
+            if data.get("active_now") is None:
+                for key in ("isOnline", "is_online", "activeNow"):
+                    if data.get(key) is not None:
+                        data["active_now"] = data[key]
+                        break
+            if data.get("isOnline") is None and data.get("active_now") is not None:
+                data["isOnline"] = data["active_now"]
+            if data.get("is_online") is None and data.get("active_now") is not None:
+                data["is_online"] = data["active_now"]
+            if data.get("capacity_limit") is None and data.get("capacityLimit") is not None:
+                data["capacity_limit"] = data["capacityLimit"]
+            if data.get("profile_languages") is None and data.get("profileLanguages") is not None:
+                data["profile_languages"] = data["profileLanguages"]
+            if data.get("display_name") is None and data.get("displayName") is not None:
+                data["display_name"] = data["displayName"]
+        return data
+
+class ListenerProfileResponse(BaseModel):
+    status: str = "success"
+    message: Optional[str] = "Listener profile updated successfully"
+    capacity_limit: Optional[int] = None
     profile_languages: Optional[List[str]] = None
     display_name: Optional[str] = None
     active_now: Optional[bool] = None
+    is_online: Optional[bool] = None
+    isOnline: Optional[bool] = None
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)

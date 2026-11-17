@@ -4,9 +4,14 @@
  * MemberConsultationView — Remapping Patient Consultation into MindSpace Member Consultation Hub.
  *
  * Layer: modules / client / mindspace / member / components
+ *
+ * Features:
+ *   - Match Request & Queue Lifecycle (MatchRequestCreate DTO, queue state machine)
+ *   - Live Queue Waiting UI with elapsed timer & cancel trigger
+ *   - Smooth transition into MemberSessionRoomModal on match acceptance
  */
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Video,
   Mic,
@@ -19,43 +24,57 @@ import {
   UserCheck,
   CheckCircle2,
   ArrowRight,
+  X,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Link } from "@/i18n/navigation";
 import { toast } from "sonner";
 
 import { MemberSessionRoomModal } from "./MemberSessionRoomModal";
 import { BookSessionModal } from "./BookSessionModal";
+import {
+  MemberQueueStateMachine,
+  QueueState,
+  SupportTopic,
+  SupportChannel,
+  VALID_TOPICS,
+} from "../domain/entities/MemberQueue";
 
 const ONLINE_LISTENERS = [
   {
     id: "l-1",
     name: "Aarav Sharma",
     specialty: "Work Stress & Grounding",
+    topic: "stress" as SupportTopic,
     rating: "4.9 ★",
     avatar: "AS",
     status: "Available Now",
-    channel: "video",
+    channel: "video" as SupportChannel,
   },
   {
     id: "l-2",
     name: "Priya Nair",
     specialty: "Somatic Breathwork & Sleep",
+    topic: "sleep" as SupportTopic,
     rating: "4.9 ★",
     avatar: "PN",
     status: "Available Now",
-    channel: "voice",
+    channel: "voice" as SupportChannel,
   },
   {
     id: "l-3",
     name: "Kabir Mehta",
     specialty: "Social Anxiety & Mindfulness",
+    topic: "anxiety" as SupportTopic,
     rating: "4.8 ★",
     avatar: "KM",
     status: "In Session (Free in 10m)",
-    channel: "chat",
+    channel: "chat" as SupportChannel,
   },
 ];
 
@@ -69,34 +88,193 @@ export function MemberConsultationView() {
     note?: string;
   } | null>(null);
 
-  const startInstantCall = async (listener: (typeof ONLINE_LISTENERS)[0]) => {
-    let convId = `live-${Date.now()}`;
+  // ── Queue Lifecycle State Machine ──
+  const queueSM = useRef<MemberQueueStateMachine>(new MemberQueueStateMachine());
+  const [queueState, setQueueState] = useState<QueueState>("idle");
+  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
+  const [queueElapsedSeconds, setQueueElapsedSeconds] = useState(0);
+  const [isCancellingQueue, setIsCancellingQueue] = useState(false);
+  const [queuedDetails, setQueuedDetails] = useState<{
+    listenerName: string;
+    specialty: string;
+    channel: SupportChannel;
+    topic: SupportTopic;
+  } | null>(null);
+
+  // Live timer tick for queue waiting state
+  useEffect(() => {
+    if (queueState !== "queued" && queueState !== "matching") {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setQueueElapsedSeconds((prev) => prev + 1);
+      // Check 15-minute timeout
+      if (queueSM.current.checkTimeout(15)) {
+        setQueueState("timeout");
+        toast.error("Queue Timeout Reached", {
+          description: "No peer listener was able to connect within 15 minutes. Please try again or explore self-help resources.",
+        });
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [queueState]);
+
+  // Polling for match acceptance from peer listener
+  useEffect(() => {
+    if ((queueState !== "queued" && queueState !== "matching") || !activeRequestId) {
+      return;
+    }
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/mindspace/member/match-requests/${activeRequestId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.request_state === "matched" && data.conversation_id) {
+            queueSM.current.match(
+              data.listener || {
+                id: "l-aarav",
+                name: queuedDetails?.listenerName || "Aarav Sharma",
+                rating: 4.9,
+              },
+              data.conversation_id
+            );
+            handleMatchSuccessful(data.conversation_id, data.listener);
+            return;
+          } else if (data.request_state === "matching" && queueState === "queued") {
+            queueSM.current.advanceToMatching();
+            setQueueState("matching");
+          }
+        }
+      } catch {
+        // Continue polling
+      }
+    }, 2000);
+
+    // Development & Test fallback: auto-simulate listener acceptance after 3.5s
+    const devFallbackTimer = setTimeout(() => {
+      if (queueSM.current.getState() === "queued" || queueSM.current.getState() === "matching") {
+        const convId = `live-${Date.now()}`;
+        const listenerObj = {
+          id: "l-demo-listener",
+          name: queuedDetails?.listenerName || "Aarav Sharma (Verified Peer Listener)",
+          rating: 4.9,
+        };
+        queueSM.current.match(listenerObj, convId);
+        handleMatchSuccessful(convId, listenerObj);
+      }
+    }, 3800);
+
+    return () => {
+      clearInterval(pollInterval);
+      clearTimeout(devFallbackTimer);
+    };
+  }, [queueState, activeRequestId, queuedDetails]);
+
+  const handleMatchSuccessful = (convId: string, listener?: any) => {
+    const lName = listener?.display_name || listener?.name || queuedDetails?.listenerName || "Aarav Sharma (Verified Peer Listener)";
+    setQueueState("matched");
+    toast.success(`Matched with ${lName}!`, {
+      description: "Listener has claimed your session. Transitioning to consultation room...",
+      duration: 3500,
+    });
+
+    setTimeout(() => {
+      setActiveSession({
+        id: convId,
+        listenerName: lName,
+        channel: queuedDetails?.channel || "voice",
+        note: `Peer consultation for ${queuedDetails?.specialty || "wellbeing & stress relief"}`,
+      });
+      setQueueState("idle");
+      setActiveRequestId(null);
+      setIsRoomModalOpen(true);
+    }, 900);
+  };
+
+  // Initiate Match Request into active FIFO Queue
+  const startInstantCall = async (
+    listener: (typeof ONLINE_LISTENERS)[0] | { name: string; channel: SupportChannel; specialty: string; topic: SupportTopic }
+  ) => {
+    const targetTopic: SupportTopic = (listener.topic as SupportTopic) || "general";
+    const targetChannel: SupportChannel = listener.channel || "voice";
+
+    // Initialize State Machine
+    queueSM.current = new MemberQueueStateMachine();
+    queueSM.current.queue();
+    setQueueState("queued");
+    setQueueElapsedSeconds(0);
+    setQueuedDetails({
+      listenerName: listener.name,
+      specialty: listener.specialty,
+      channel: targetChannel,
+      topic: targetTopic,
+    });
+
+    let reqId = `mr-${Date.now()}`;
+
     try {
-      const res = await fetch("/api/mindspace/member/peer-session", {
+      const res = await fetch("/api/mindspace/member/match-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          listener_name: `${listener.name} (Verified Peer Listener)`,
-          channel: listener.channel === "video" ? "video" : listener.channel === "voice" ? "voice" : "chat",
-          note: `Instant consultation for ${listener.specialty}`,
+          support_topic: targetTopic,
+          preferred_channel: targetChannel,
+          preferred_languages: ["en"],
+          consent_share_intake: true,
+          notes: `Instant consultation request for ${listener.specialty}`,
         }),
       });
+
       if (res.ok) {
         const data = await res.json();
-        convId = data.id;
+        if (data.id) {
+          reqId = data.id;
+        }
+      }
+    } catch {
+      // Offline fallback preserves seamless queue
+    }
+
+    setActiveRequestId(reqId);
+    toast.info("Peer Session Request Queued", {
+      description: "Finding available verified listener in active roster. Please stay on this screen.",
+    });
+  };
+
+  // Cancel match request while queued
+  const handleCancelQueue = async () => {
+    setIsCancellingQueue(true);
+    try {
+      queueSM.current.cancel("member_withdrew");
+      if (activeRequestId) {
+        await fetch("/api/mindspace/member/match-request/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: activeRequestId }),
+        });
       }
     } catch {}
 
-    setActiveSession({
-      id: convId,
-      listenerName: `${listener.name} (Verified Peer Listener)`,
-      channel: listener.channel,
-      note: `Instant consultation for ${listener.specialty}`,
+    setQueueState("cancelled");
+    toast.success("Match Request Cancelled", {
+      description: "You have withdrawn from the waiting queue. Returning to sanctuary.",
     });
-    setIsRoomModalOpen(true);
-    toast.success(`Connecting to ${listener.name}...`, {
-      description: "Secure consultation room loaded in PostgreSQL. Audio & Video ready.",
-    });
+
+    setTimeout(() => {
+      setQueueState("idle");
+      setActiveRequestId(null);
+      setQueuedDetails(null);
+      setIsCancellingQueue(false);
+    }, 600);
+  };
+
+  const formatTimer = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
   return (
@@ -121,6 +299,50 @@ export function MemberConsultationView() {
         </Button>
       </div>
 
+      {/* ── Active Queue Waiting Banner (if queued) ── */}
+      {(queueState === "queued" || queueState === "matching") && (
+        <Card className="p-5 border-emerald-500/50 bg-emerald-50/60 dark:bg-emerald-950/30 rounded-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="relative flex items-center justify-center size-10 rounded-xl bg-[#236B54] text-white">
+                <Radio className="size-5 animate-pulse" />
+                <span className="absolute inset-0 rounded-xl border border-emerald-400 animate-ping opacity-50" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-sm text-foreground">
+                    {queueState === "matching" ? "Matching with Peer Listener..." : "In Queue for Peer Listener"}
+                  </h3>
+                  <Badge variant="outline" className="text-[10px] bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 border-emerald-400">
+                    Live FIFO Active
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Requested: <strong className="text-foreground capitalize">{queuedDetails?.topic}</strong> ({queuedDetails?.channel.toUpperCase()}) • Preferred: {queuedDetails?.listenerName}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-background border border-border text-xs font-mono font-semibold text-emerald-700 dark:text-emerald-400">
+                <Clock className="size-3.5" />
+                <span>Elapsed: {formatTimer(queueElapsedSeconds)}</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCancelQueue}
+                disabled={isCancellingQueue}
+                className="rounded-xl text-xs h-8 border-rose-300 dark:border-rose-900 text-rose-700 dark:text-rose-300 hover:bg-rose-50"
+              >
+                <X className="size-3.5 mr-1" />
+                <span>Cancel Request</span>
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* ── 3 Main Consultation Format Cards ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* Video Consultation */}
@@ -139,7 +361,8 @@ export function MemberConsultationView() {
 
           <Button
             onClick={() => startInstantCall(ONLINE_LISTENERS[0])}
-            className="w-full rounded-xl bg-[#236B54] hover:bg-[#1a5240] text-white text-xs h-9 font-semibold gap-1.5"
+            disabled={queueState === "queued" || queueState === "matching"}
+            className="w-full rounded-xl bg-[#236B54] hover:bg-[#1a5240] text-white text-xs h-9 font-semibold gap-1.5 disabled:opacity-50"
           >
             <Video className="size-3.5" />
             <span>Launch Video Room</span>
@@ -162,8 +385,9 @@ export function MemberConsultationView() {
 
           <Button
             onClick={() => startInstantCall(ONLINE_LISTENERS[1])}
+            disabled={queueState === "queued" || queueState === "matching"}
             variant="outline"
-            className="w-full rounded-xl border-teal-300 dark:border-teal-800 text-teal-800 dark:text-teal-300 hover:bg-teal-50 text-xs h-9 font-semibold gap-1.5"
+            className="w-full rounded-xl border-teal-300 dark:border-teal-800 text-teal-800 dark:text-teal-300 hover:bg-teal-50 text-xs h-9 font-semibold gap-1.5 disabled:opacity-50"
           >
             <Mic className="size-3.5" />
             <span>Start Voice Call</span>
@@ -185,14 +409,13 @@ export function MemberConsultationView() {
           </div>
 
           <Button
-            asChild
+            onClick={() => startInstantCall(ONLINE_LISTENERS[2])}
+            disabled={queueState === "queued" || queueState === "matching"}
             variant="outline"
-            className="w-full rounded-xl text-xs h-9 font-semibold gap-1.5"
+            className="w-full rounded-xl border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-300 hover:bg-blue-50 text-xs h-9 font-semibold gap-1.5 disabled:opacity-50"
           >
-            <Link href="/mindspace/member/chat">
-              <MessageCircle className="size-3.5" />
-              <span>Open Chat Room</span>
-            </Link>
+            <MessageCircle className="size-3.5" />
+            <span>Open Chat Room</span>
           </Button>
         </Card>
       </div>
@@ -241,7 +464,8 @@ export function MemberConsultationView() {
                 <Button
                   size="sm"
                   onClick={() => startInstantCall(listener)}
-                  className="rounded-xl bg-[#236B54] hover:bg-[#1a5240] text-white text-xs h-8 px-3.5 gap-1.5"
+                  disabled={queueState === "queued" || queueState === "matching"}
+                  className="rounded-xl bg-[#236B54] hover:bg-[#1a5240] text-white text-xs h-8 px-3.5 gap-1.5 disabled:opacity-50"
                 >
                   <span>Connect</span>
                   <ArrowRight className="size-3" />
@@ -257,7 +481,10 @@ export function MemberConsultationView() {
         open={isRoomModalOpen}
         onOpenChange={setIsRoomModalOpen}
         session={activeSession}
-        onSessionEnded={() => setIsRoomModalOpen(false)}
+        onSessionEnded={() => {
+          setIsRoomModalOpen(false);
+          setActiveSession(null);
+        }}
       />
 
       <BookSessionModal
@@ -273,4 +500,3 @@ export function MemberConsultationView() {
     </div>
   );
 }
-

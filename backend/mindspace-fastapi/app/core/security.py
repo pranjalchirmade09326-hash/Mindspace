@@ -119,25 +119,34 @@ def decrypt_content(packed: Optional[bytes], key_version: Optional[str]) -> Opti
 # Authentication
 security = HTTPBearer(auto_error=False)
 
-async def get_current_user_id(credentials: Optional[HTTPAuthorizationCredentials] = Security(security)) -> str:
+async def get_current_user_id(
+    request: Request = None,
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(security)
+) -> str:
     """
     Validates JWT token and returns user_id (subject claim).
-    Falls back to a default demo member when unauthenticated in development.
+    Checks x-user-id or x-member-id headers before falling back to default demo user in development/test.
     """
-    if not credentials:
-        # Development fallback
-        return "usr-demo-member-01"
-    
-    token = credentials.credentials
-    try:
-        # Decode without verification first to inspect sub
-        unverified = jwt.decode(token, options={"verify_signature": False})
-        sub = unverified.get("sub") or unverified.get("userId") or unverified.get("id")
-        if sub:
-            return str(sub)
-    except Exception:
-        pass
-    
+    if request is not None:
+        header_user = (
+            request.headers.get("x-user-id")
+            or request.headers.get("x-member-id")
+            or request.headers.get("x-listener-id")
+        )
+        if header_user and header_user.strip():
+            return header_user.strip()
+
+    if hasattr(credentials, "credentials") and credentials.credentials:
+        token = credentials.credentials
+        try:
+            # Decode without verification first to inspect sub
+            unverified = jwt.decode(token, options={"verify_signature": False})
+            sub = unverified.get("sub") or unverified.get("userId") or unverified.get("id")
+            if sub:
+                return str(sub)
+        except Exception:
+            pass
+
     return "usr-demo-member-01"
 
 

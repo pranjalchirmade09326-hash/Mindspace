@@ -167,7 +167,23 @@ export function ListenerDashboardView({
 
   // Fetch live queue & peer conversations on mount
   useEffect(() => {
-    async function loadLiveQueue() {
+    async function loadInitialData() {
+      try {
+        const profileRes = await fetch("/api/mindspace/listener/summary");
+        if (profileRes.ok) {
+          const pData = await profileRes.json();
+          if (pData.active_now !== undefined) {
+            setIsAvailable(Boolean(pData.active_now));
+          } else if (pData.isOnline !== undefined) {
+            setIsAvailable(Boolean(pData.isOnline));
+          } else if (pData.availability !== undefined) {
+            setIsAvailable(pData.availability === "available");
+          }
+        }
+      } catch {
+        // Fallback to initialAvailable prop
+      }
+
       try {
         const res = await fetch("/api/mindspace/listener/conversations");
         if (res.ok) {
@@ -189,7 +205,7 @@ export function ListenerDashboardView({
         // Resilient fallback to initial queue
       }
     }
-    loadLiveQueue();
+    loadInitialData();
   }, []);
 
   // Modals state
@@ -309,16 +325,33 @@ export function ListenerDashboardView({
   };
 
   const toggleAvailability = async () => {
+    if (cooldownActive && cooldownSeconds > 0) {
+      toast.warning("Caregiver Cooldown Active", {
+        description: "Please complete your rest and decompression period before going online.",
+      });
+      return;
+    }
+
     const next = !isAvailable;
     setIsAvailable(next);
     try {
-      await fetch("/api/mindspace/listener/profile", {
+      const res = await fetch("/api/mindspace/listener/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isOnline: next }),
+        body: JSON.stringify({ isOnline: next, active_now: next }),
       });
+      if (res.ok) {
+        const data = await res.json();
+        const serverOnline =
+          data.isOnline !== undefined
+            ? Boolean(data.isOnline)
+            : data.active_now !== undefined
+            ? Boolean(data.active_now)
+            : next;
+        setIsAvailable(serverOnline);
+      }
     } catch {
-      // Continue
+      // Continue with optimistic state
     }
 
     if (next) {
@@ -344,9 +377,61 @@ export function ListenerDashboardView({
     setIsIntakeModalOpen(true);
   };
 
-  const handleStartCall = (member: TQueueMember) => {
+  const handleStartCall = async (member: TQueueMember) => {
+    if (cooldownActive && cooldownSeconds > 0) {
+      toast.warning("Caregiver Cooldown Active", {
+        description: "Please complete your decompression break before starting a new consultation.",
+      });
+      return;
+    }
+
+    let conversationId = member.id;
+
+    if (member.status === "waiting") {
+      try {
+        const res = await fetch(`/api/mindspace/listener/offers/${member.id}/accept`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ channel: member.channel }),
+        });
+
+        if (res.status === 200) {
+          const data = await res.json();
+          if (data.conversation_id) {
+            conversationId = data.conversation_id;
+          }
+        } else if (res.status === 409) {
+          const errData = await res.json().catch(() => ({}));
+          const detail = errData.detail || "";
+          if (detail.includes("CLAIMED")) {
+            toast.error("Request Already Claimed", {
+              description: "Another listener in your pod claimed this session. Refreshing queue...",
+            });
+          } else if (detail.includes("CANCELLED")) {
+            toast.info("Request Cancelled", {
+              description: "The member cancelled this match request. Refreshing queue...",
+            });
+          } else {
+            toast.info("Request Unavailable", {
+              description: "This request is no longer available in the queue.",
+            });
+          }
+          handleRefresh();
+          return;
+        } else if (res.status === 400) {
+          const errData = await res.json().catch(() => ({}));
+          toast.warning("Cannot Accept Request", {
+            description: errData.detail || "Workload limit reached or offline.",
+          });
+          return;
+        }
+      } catch {
+        // Fallback to local connect
+      }
+    }
+
     setActiveCallSession({
-      id: member.id,
+      id: conversationId,
       memberName: member.displayName,
       topic: member.topic,
       channel: member.channel,

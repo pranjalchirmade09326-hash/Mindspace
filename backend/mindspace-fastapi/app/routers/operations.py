@@ -90,6 +90,15 @@ async def get_supervisor_conduct_reports(
 
 
 @router.post("/operations/supervisor/conduct-reports")
+async def create_supervisor_conduct_report(
+    payload: Dict[str, Any] = Body(...),
+    user_id: str = Depends(get_current_user_id),
+    service: OperationsService = Depends(get_operations_service),
+):
+    return await service.create_conduct_report(user_id, payload)
+
+
+@router.post("/operations/conduct-reports", status_code=201)
 async def create_conduct_report(
     payload: Dict[str, Any] = Body(...),
     user_id: str = Depends(get_current_user_id),
