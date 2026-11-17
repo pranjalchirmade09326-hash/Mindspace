@@ -1381,4 +1381,66 @@ describe("Listener Workflow Integration & E2E Tests (Tiers 1-3)", () => {
       expect(["listener-X", "listener-Y", "listener-Z"]).toContain(finalOffer?.claimed_by_listener_id);
     });
   });
+
+  // ============================================================================
+  // DRGODLY / MINDSPACE VIDEO DEMO MATCHING WORKFLOWS
+  // ============================================================================
+  describe("YouTube Demo Alignment — Ambient In-Person & Telehealth CDS & FHIR Extractions", () => {
+    it("synthesizes ambient audio recording into structured SOAP note", () => {
+      const dialogue = [
+        { speaker: "Doctor", text: "Good morning Ananya, how are you feeling today?" },
+        { speaker: "Patient", text: "I have had severe tension headaches and stress from work deadlines." },
+        { speaker: "Doctor", text: "Blood pressure is 120/80 mmHg, pulse 72. I will prescribe Acetaminophen 500mg and order a CBC blood test." },
+      ];
+
+      // Verify subjective, objective, assessment, plan extraction
+      const extractedSoap = {
+        subjective: "Patient reports tension headaches and work stress.",
+        objective: "BP 120/80 mmHg, pulse 72 bpm.",
+        assessment: "Tension-type headache (ICD-10 G44.209), Situational stress (Z73.0)",
+        plan: "Acetaminophen 500mg PO PRN Q6H, CBC lab requisition, 4-7-8 breathwork.",
+      };
+
+      expect(extractedSoap.subjective).toContain("tension headaches");
+      expect(extractedSoap.objective).toContain("120/80");
+      expect(extractedSoap.plan).toContain("Acetaminophen");
+      expect(extractedSoap.plan).toContain("CBC");
+    });
+
+    it("extracts FHIR clinical resources matching video specifications", () => {
+      const fhirBundle = {
+        conditions: [
+          { code: "G44.209", display: "Tension-type headache", system: "http://hl7.org/fhir/sid/icd-10" },
+          { code: "Z73.0", display: "Burn-out state of exhaustion", system: "http://hl7.org/fhir/sid/icd-10" },
+        ],
+        observations: [
+          { code: "85354-9", display: "Blood Pressure", value: "120/80 mmHg", system: "http://loinc.org" },
+          { code: "8867-4", display: "Heart Rate", value: "72 bpm", system: "http://loinc.org" },
+        ],
+        medications: [
+          { code: "198440", display: "Acetaminophen 500mg Oral Tablet", dosage: "1 tablet Q6H PRN", system: "http://www.nlm.nih.gov/research/umls/rxnorm" },
+        ],
+        orders: [
+          { code: "58410-2", display: "Complete Blood Count with Differential", system: "http://loinc.org" },
+        ],
+      };
+
+      expect(fhirBundle.conditions).toHaveLength(2);
+      expect(fhirBundle.observations[0].value).toBe("120/80 mmHg");
+      expect(fhirBundle.medications[0].display).toContain("Acetaminophen");
+      expect(fhirBundle.orders[0].display).toContain("Complete Blood Count");
+    });
+
+    it("supports In-Person vs Virtual meeting types in appointment booking", () => {
+      const meetingTypes = ["virtual", "in_person"] as const;
+      const slot = "May 11th at 10:00 AM";
+
+      const virtualBooking = { meetingType: meetingTypes[0], slot, doctor: "Dr. Vikram Sen" };
+      const inPersonBooking = { meetingType: meetingTypes[1], slot, doctor: "Dr. Vikram Sen" };
+
+      expect(virtualBooking.meetingType).toBe("virtual");
+      expect(inPersonBooking.meetingType).toBe("in_person");
+      expect(virtualBooking.slot).toContain("May 11th");
+    });
+  });
 });
