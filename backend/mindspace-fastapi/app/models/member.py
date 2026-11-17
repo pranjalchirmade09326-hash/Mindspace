@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Boolean, Numeric, Date, JSON, LargeBinary
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -46,7 +46,7 @@ class MemberPreference(Base):
 class RoleAssignment(Base):
     __tablename__ = "role_assignments"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(Text, ForeignKey("app_principals.user_id"), nullable=False)
     role_code = Column(Text, nullable=False)
     assignment_state = Column(Text, nullable=False)

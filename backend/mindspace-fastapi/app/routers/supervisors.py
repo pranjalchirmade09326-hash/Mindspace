@@ -58,7 +58,7 @@ async def get_training_reviews(
     service: SupervisorService = Depends(get_supervisor_service),
 ):
     """Retrieve pending listener training and CEU verifications (US-018 / US-031)"""
-    return service.get_training_reviews()
+    return await service.get_training_reviews()
 
 
 @router.put("/pod/training-reviews/{id}/verify")
@@ -68,7 +68,7 @@ async def verify_training_review(
     service: SupervisorService = Depends(get_supervisor_service),
 ):
     """Supervisor verifies & signs off listener training module in PostgreSQL"""
-    return service.verify_training_review(id, payload)
+    return await service.verify_training_review(id, payload)
 
 
 # ─── SUPERVISOR CRUD ────────────────────────────────────────────────────────

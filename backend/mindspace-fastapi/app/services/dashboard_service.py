@@ -187,10 +187,22 @@ class DashboardService(BaseService):
         )
         open_convs = open_convs_q.scalar() or 0
 
+        training_q = await self.db.execute(
+            select(func.count(ListenerTrainingRecord.id)).where(
+                ListenerTrainingRecord.completion_state.in_([
+                    "pending_supervisor_signoff",
+                    "pending_review",
+                    "in_progress",
+                    "assigned",
+                ])
+            )
+        )
+        training_due = training_q.scalar() or 0
+
         return {
             "activeListeners": active_listeners,
             "pendingApplications": pending_apps,
-            "trainingDue": 1,
+            "trainingDue": training_due,
             "openConductReports": open_reports,
             "openConversations": open_convs,
         }

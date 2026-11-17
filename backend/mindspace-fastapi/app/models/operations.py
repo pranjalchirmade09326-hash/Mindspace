@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, JSON, LargeBinary
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Integer, Float, Boolean, JSON, LargeBinary
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -22,12 +22,14 @@ class AuditEvent(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     occurred_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     actor_user_id = Column(Text, nullable=True)
+    actor_type = Column(Text, default="user", nullable=True)
     action_code = Column(Text, nullable=False)
     resource_type = Column(Text, nullable=False)
     resource_id = Column(Text, nullable=True)
-    correlation_id = Column(Text, nullable=True)
+    purpose_code = Column(Text, default="operational_audit", nullable=True)
+    correlation_id = Column(UUID(as_uuid=True), nullable=True)
     outcome = Column(Text, nullable=False)
-    details = Column(JSONB, nullable=True)
+    details = Column("metadata", JSONB, nullable=True)
 
 class ListenerTrainingRecord(Base):
     __tablename__ = "listener_training_records"
@@ -63,10 +65,27 @@ class ConductReport(Base):
     category_code = Column(Text, nullable=False)
     details_ciphertext = Column(LargeBinary, nullable=True)
     key_version = Column(Text, nullable=True)
+    severity = Column(Text, default="routine", nullable=True)
     report_state = Column(Text, default="open", nullable=False)
     assigned_to_user_id = Column(Text, nullable=True)
     createdAt = Column("created_at", DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     resolvedAt = Column("resolved_at", DateTime(timezone=True), nullable=True)
+
+    @property
+    def created_at(self):
+        return self.createdAt
+
+    @created_at.setter
+    def created_at(self, val):
+        self.createdAt = val
+
+    @property
+    def resolved_at(self):
+        return self.resolvedAt
+
+    @resolved_at.setter
+    def resolved_at(self, val):
+        self.resolvedAt = val
 
 class ListenerFeedback(Base):
     __tablename__ = "listener_feedback"
@@ -77,6 +96,8 @@ class ListenerFeedback(Base):
     rating = Column(Integer, nullable=True)
     feedback_ciphertext = Column(LargeBinary, nullable=True)
     key_version = Column(Text, nullable=True)
+    post_mood_score = Column(Float, nullable=True)
+    sync_to_journal = Column(Boolean, default=False, nullable=True)
     review_state = Column(Text, default="received", nullable=False)
     submitted_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     reviewed_by_user_id = Column(Text, nullable=True)

@@ -471,5 +471,13 @@ export const dashboardRoles: DashboardRole[] = [
 ];
 
 export function getDashboardRole(roleId: string): DashboardRole | undefined {
-  return dashboardRoles.find((role) => role.id === roleId);
+  const normalizedId =
+    roleId === "supervisor" || roleId === "listener_supervisor"
+      ? "listener-supervisor"
+      : roleId === "safety" || roleId === "safety_operations" || roleId === "safety_operations_specialist"
+      ? "safety-operations"
+      : roleId === "admin" || roleId === "platform_administrator"
+      ? "platform-administrator"
+      : roleId;
+  return dashboardRoles.find((role) => role.id === normalizedId || role.id === roleId);
 }

@@ -1,13 +1,16 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from app.core.security import get_current_user_id
+from app.core.websocket_manager import manager
 from app.schemas.peer import (
     MatchRequestCreate,
     BookSessionRequest,
     PeerMessageCreate,
     SoapNoteCreate,
     ListenerProfileUpdate,
+    FeedbackCreate,
 )
 from app.services.peer_service import PeerService, get_peer_service
+from typing import Dict, Any
 
 router = APIRouter(prefix="/api/v1", tags=["Peer Support"])
 
@@ -34,6 +37,61 @@ async def create_match_request(
     service: PeerService = Depends(get_peer_service),
 ):
     return await service.create_match_request(user_id, payload)
+
+
+# NOTE: /active must precede /{request_id} so "active" is not treated as a request ID path parameter
+@router.get("/peer/match-requests/active")
+async def list_active_match_requests(
+    user_id: str = Depends(get_current_user_id),
+    service: PeerService = Depends(get_peer_service),
+):
+    return await service.list_active_match_requests(user_id)
+
+
+@router.get("/peer/match-requests/{request_id}")
+async def get_match_request_status(
+    request_id: str,
+    user_id: str = Depends(get_current_user_id),
+    service: PeerService = Depends(get_peer_service),
+):
+    return await service.get_match_request_status(user_id, request_id)
+
+
+@router.post("/peer/match-requests/{request_id}/cancel")
+async def cancel_match_request(
+    request_id: str,
+    user_id: str = Depends(get_current_user_id),
+    service: PeerService = Depends(get_peer_service),
+):
+    return await service.cancel_match_request(user_id, request_id)
+
+
+@router.post("/peer/match-requests/{request_id}/accept")
+@router.post("/listeners/me/offers/{request_id}/accept")
+async def accept_match_request(
+    request_id: str,
+    user_id: str = Depends(get_current_user_id),
+    service: PeerService = Depends(get_peer_service),
+):
+    return await service.accept_match_request(user_id, request_id)
+
+
+@router.post("/peer/match-requests/{request_id}/decline")
+@router.post("/listeners/me/offers/{request_id}/decline")
+async def decline_match_request(
+    request_id: str,
+    user_id: str = Depends(get_current_user_id),
+    service: PeerService = Depends(get_peer_service),
+):
+    return await service.decline_match_request(user_id, request_id)
+
+
+@router.post("/listeners/me/toggle-active")
+async def toggle_listener_active(
+    user_id: str = Depends(get_current_user_id),
+    service: PeerService = Depends(get_peer_service),
+):
+    return await service.toggle_listener_active(user_id)
 
 
 @router.get("/peer/conversations")
@@ -82,6 +140,16 @@ async def close_conversation(
     return await service.close_conversation(user_id, conversation_id)
 
 
+@router.post("/peer/conversations/{conversation_id}/feedback")
+async def submit_feedback(
+    conversation_id: str,
+    payload: FeedbackCreate,
+    user_id: str = Depends(get_current_user_id),
+    service: PeerService = Depends(get_peer_service),
+):
+    return await service.submit_feedback(user_id, conversation_id, payload)
+
+
 @router.post("/peer/conversations/{conversation_id}/soap")
 async def save_soap_note(
     conversation_id: str,
@@ -99,3 +167,28 @@ async def update_listener_profile(
     service: PeerService = Depends(get_peer_service),
 ):
     return await service.update_listener_profile(user_id, payload)
+
+
+# WebSocket consultation channel
+@router.websocket("/peer/ws/{conversation_id}")
+async def websocket_peer_endpoint(
+    websocket: WebSocket,
+    conversation_id: str,
+    service: PeerService = Depends(get_peer_service),
+):
+    await manager.connect(conversation_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            # If incoming message contains content, persist and broadcast
+            content = data.get("content") or data.get("text")
+            sender_id = data.get("sender_user_id") or "usr-demo-member-01"
+            if content:
+                msg_payload = PeerMessageCreate(content=content)
+                saved_msg = await service.send_message(sender_id, conversation_id, msg_payload)
+            elif data.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        manager.disconnect(conversation_id, websocket)
+    except Exception:
+        manager.disconnect(conversation_id, websocket)

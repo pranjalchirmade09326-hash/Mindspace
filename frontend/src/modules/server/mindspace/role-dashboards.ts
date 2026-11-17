@@ -270,8 +270,26 @@ export async function loadAdminOverviewData(): Promise<AdminOverviewData | null>
   const telemetry: Record<string, any> = { cpu: "14%", memory: "32%", latencyMs: 24, status: "operational" };
   let auditEvents: any[] = [];
   if (request) {
-    const apiAudit = await load(() => request<any[]>("/api/v1/admin/audit-events"));
-    if (apiAudit && Array.isArray(apiAudit)) auditEvents = apiAudit;
+    const [overview, keysData, apiAudit] = await Promise.all([
+      load(() => request<any>("/api/v1/admin/platform/overview")),
+      load(() => request<{ keys: any[] }>("/api/v1/admin/kms/keys")),
+      load(() => request<any[]>("/api/v1/admin/audit-events")),
+    ]);
+    if (overview) {
+      summary.totalUsers = overview.activeUsers ?? summary.totalUsers;
+      summary.activeSafetyCases = overview.openSafetyCases ?? summary.activeSafetyCases;
+      summary.clusterHealth = overview.databaseStatus ?? summary.clusterHealth;
+      telemetry.databaseStatus = overview.databaseStatus;
+      telemetry.activeWorkflows = overview.activeWorkflows;
+      telemetry.pendingTasks = overview.pendingTasks;
+      telemetry.service = overview.service;
+    }
+    if (keysData?.keys) {
+      telemetry.kmsKeys = keysData.keys;
+    }
+    if (apiAudit && Array.isArray(apiAudit)) {
+      auditEvents = apiAudit;
+    }
   }
   return { summary, telemetry, auditEvents };
 }
@@ -336,7 +354,7 @@ export async function loadAdminSectionData(sectionId: string): Promise<AdminSect
 
 async function load<T>(request: () => Promise<T>): Promise<T | null> {
   try {
-    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 120));
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
     return await Promise.race([request(), timeout]);
   } catch {
     return null;
@@ -562,13 +580,15 @@ export async function loadRoleOverviewData(roleId: string): Promise<RoleOverview
       return data ? { role: "listener", data } : null;
     }
     case "listener-supervisor":
-    case "listener_supervisor": {
+    case "listener_supervisor":
+    case "supervisor": {
       const data = await loadSupervisorOverviewData();
       return data ? { role: "listener-supervisor", data } : null;
     }
     case "safety-operations":
     case "safety_operations":
-    case "safety_operations_specialist": {
+    case "safety_operations_specialist":
+    case "safety": {
       const data = await loadSafetyOverviewData();
       return data ? { role: "safety-operations", data } : null;
     }
@@ -597,13 +617,15 @@ export async function loadRoleSectionData(
       return data ? { role: "listener", data } : null;
     }
     case "listener-supervisor":
-    case "listener_supervisor": {
+    case "listener_supervisor":
+    case "supervisor": {
       const data = await loadSupervisorSectionData(sectionId);
       return data ? { role: "listener-supervisor", data } : null;
     }
     case "safety-operations":
     case "safety_operations":
-    case "safety_operations_specialist": {
+    case "safety_operations_specialist":
+    case "safety": {
       const data = await loadSafetySectionData(sectionId);
       return data ? { role: "safety-operations", data } : null;
     }

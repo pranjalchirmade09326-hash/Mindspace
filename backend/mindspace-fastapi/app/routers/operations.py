@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Query, Body
-from app.core.security import get_current_user_id
+from app.core.security import get_current_user_id, list_kms_keys, rotate_kms_key
 from app.services.operations_service import OperationsService, get_operations_service
 from typing import Dict, Any
 
@@ -14,6 +14,14 @@ async def get_listener_profile(
     service: OperationsService = Depends(get_operations_service),
 ):
     return await service.get_listener_profile(user_id)
+
+
+@router.post("/listeners/me/toggle-active")
+async def toggle_listener_active(
+    user_id: str = Depends(get_current_user_id),
+    service: OperationsService = Depends(get_operations_service),
+):
+    return await service.toggle_listener_active(user_id)
 
 
 @router.post("/listeners/me/profile")
@@ -81,6 +89,15 @@ async def get_supervisor_conduct_reports(
     return await service.get_supervisor_conduct_reports()
 
 
+@router.post("/operations/supervisor/conduct-reports")
+async def create_conduct_report(
+    payload: Dict[str, Any] = Body(...),
+    user_id: str = Depends(get_current_user_id),
+    service: OperationsService = Depends(get_operations_service),
+):
+    return await service.create_conduct_report(user_id, payload)
+
+
 @router.patch("/operations/supervisor/conduct-reports/{report_id}")
 async def update_conduct_report(
     report_id: str,
@@ -140,11 +157,39 @@ async def get_safety_case_actions(
     return await service.get_safety_case_actions(case_id)
 
 
+@router.post("/operations/safety/cases/{case_id}/actions")
+async def create_safety_case_action(
+    case_id: str,
+    payload: Dict[str, Any] = Body(...),
+    user_id: str = Depends(get_current_user_id),
+    service: OperationsService = Depends(get_operations_service),
+):
+    return await service.create_safety_case_action(case_id, user_id, payload)
+
+
+@router.patch("/operations/safety/cases/{case_id}")
+async def update_safety_case(
+    case_id: str,
+    payload: Dict[str, Any] = Body(...),
+    service: OperationsService = Depends(get_operations_service),
+):
+    return await service.update_safety_case(case_id, payload)
+
+
 @router.get("/operations/safety/followups")
 async def get_safety_followups(
     service: OperationsService = Depends(get_operations_service),
 ):
     return await service.get_safety_followups()
+
+
+@router.patch("/operations/safety/followups/{id}")
+async def update_safety_followup(
+    id: str,
+    payload: Dict[str, Any] = Body(...),
+    service: OperationsService = Depends(get_operations_service),
+):
+    return await service.update_safety_followup(id, payload)
 
 
 # ─── PLATFORM ADMINISTRATION & GOVERNANCE ───────────────────────────────────
@@ -154,6 +199,51 @@ async def get_admin_roles(
     service: OperationsService = Depends(get_operations_service),
 ):
     return await service.get_admin_roles()
+
+
+@router.post("/admin/roles")
+async def assign_admin_role(
+    payload: Dict[str, Any] = Body(...),
+    user_id: str = Depends(get_current_user_id),
+    service: OperationsService = Depends(get_operations_service),
+):
+    return await service.assign_admin_role(user_id, payload)
+
+
+@router.delete("/admin/roles/{role_id}")
+async def revoke_admin_role(
+    role_id: str,
+    user_id: str = Depends(get_current_user_id),
+    service: OperationsService = Depends(get_operations_service),
+):
+    return await service.revoke_admin_role(role_id, user_id)
+
+
+@router.get("/admin/kms/keys")
+async def get_kms_keys():
+    return {"keys": list_kms_keys()}
+
+
+@router.post("/admin/kms/rotate")
+async def rotate_kms(
+    user_id: str = Depends(get_current_user_id),
+    service: OperationsService = Depends(get_operations_service),
+):
+    res = rotate_kms_key()
+    import uuid
+    from app.models.operations import AuditEvent
+    audit = AuditEvent(
+        id=uuid.uuid4(),
+        actor_user_id=user_id or "usr-demo-admin-01",
+        action_code="kms_key_rotated",
+        resource_type="kms_key",
+        resource_id=res.get("currentVersion"),
+        outcome="success",
+        details=res
+    )
+    service.db.add(audit)
+    await service.db.commit()
+    return res
 
 
 @router.get("/admin/workflow-definitions")

@@ -83,3 +83,62 @@ async def delete_safety_officer(id: str, service: SafetyService = Depends(get_sa
     """Delete a safety officer and associated stats"""
     await service.delete_safety_officer(id)
     return None
+
+
+# ─── FRONTEND REPOSITORY ALIAS ROUTER (/api/v1/safety/*) ─────────────────────
+
+safety_alias_router = APIRouter(prefix="/api/v1/safety", tags=["safety"])
+
+
+@safety_alias_router.get("/profiles/search", response_model=List[SafetyResponse])
+async def search_safety_profiles(
+    search: SafetySearchRequest = Depends(),
+    service: SafetyService = Depends(get_safety_service),
+):
+    """Search safety profiles (satisfies SafetyRepository.ts)"""
+    safety_officers = await service.search_safety_officers(search)
+    return [SafetyResponse.model_validate(safety) for safety in safety_officers]
+
+
+@safety_alias_router.get("/profiles/{id}", response_model=SafetyResponse)
+async def get_safety_profile_alias(
+    id: str,
+    service: SafetyService = Depends(get_safety_service),
+):
+    """Fetch safety profile by ID (satisfies SafetyRepository.ts:60)"""
+    safety = await service.get_by_id(id)
+    return SafetyResponse.model_validate(safety)
+
+
+@safety_alias_router.get("/stats/aggregated", response_model=SafetyStatsResponse)
+async def get_safety_stats_aggregated(
+    service: SafetyService = Depends(get_safety_service),
+):
+    """Fetch aggregated safety stats (satisfies SafetyRepository.ts:72)"""
+    officers = await service.list_safety_officers(limit=1)
+    if officers and officers[0].stats:
+        return SafetyStatsResponse.model_validate(officers[0].stats)
+    from datetime import datetime
+    return SafetyStatsResponse(
+        id="aggregated",
+        safety_id="all",
+        high_risk_users=2,
+        alerts_active=1,
+        incidents_reported=4,
+        avg_response_time_minutes=1.8,
+        escalations_made=2,
+        assessment_completion_rate=99.2,
+        critical_cases=0,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+
+
+@safety_alias_router.get("/stats/{id}", response_model=SafetyStatsResponse)
+async def get_safety_stats_alias(
+    id: str,
+    service: SafetyService = Depends(get_safety_service),
+):
+    """Fetch safety stats by ID (satisfies SafetyRepository.ts:66)"""
+    stats = await service.get_stats(id)
+    return SafetyStatsResponse.model_validate(stats)

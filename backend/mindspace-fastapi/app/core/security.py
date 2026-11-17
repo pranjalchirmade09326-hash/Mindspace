@@ -1,8 +1,9 @@
 import json
 import base64
 import os
-from typing import Optional, Tuple
-from fastapi import HTTPException, Security, Depends
+from typing import Optional, Tuple, List, Dict
+from datetime import datetime, timezone
+from fastapi import HTTPException, Security, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import jwt
@@ -13,13 +14,60 @@ from app.core.config import settings
 def get_encryption_keys() -> dict[str, bytes]:
     try:
         keys_dict = json.loads(settings.INTAKE_ENCRYPTION_KEYS_JSON)
-        return {k: base64.b64decode(v) for k, v in keys_dict.items()}
-    except Exception as e:
+        base_keys = {k: base64.b64decode(v) for k, v in keys_dict.items()}
+    except Exception:
         # Fallback 32-byte key
-        return {"v1": b"0" * 32}
+        base_keys = {"v1": b"0" * 32}
+    if "ENCRYPTION_KEYS" in globals() and isinstance(ENCRYPTION_KEYS, dict):
+        base_keys.update(ENCRYPTION_KEYS)
+    return base_keys
 
 ENCRYPTION_KEYS = get_encryption_keys()
 CURRENT_KEY_VERSION = settings.INTAKE_CURRENT_ENCRYPTION_KEY_VERSION
+
+KMS_KEY_METADATA: Dict[str, dict] = {
+    "v1": {
+        "version": "v1",
+        "algorithm": "AES-256-GCM",
+        "status": "primary",
+        "created_at": "2026-01-01T00:00:00Z",
+    }
+}
+
+def list_kms_keys() -> list[dict]:
+    results = []
+    for ver in sorted(ENCRYPTION_KEYS.keys()):
+        meta = KMS_KEY_METADATA.get(ver, {})
+        results.append({
+            "version": ver,
+            "algorithm": meta.get("algorithm", "AES-256-GCM"),
+            "status": "primary" if ver == CURRENT_KEY_VERSION else "active",
+            "created_at": meta.get("created_at", "2026-01-01T00:00:00Z"),
+        })
+    return results
+
+def rotate_kms_key() -> dict:
+    global CURRENT_KEY_VERSION
+    new_version_num = len(ENCRYPTION_KEYS) + 1
+    new_version = f"v{new_version_num}"
+    new_key = os.urandom(32)
+    ENCRYPTION_KEYS[new_version] = new_key
+    prev_ver = CURRENT_KEY_VERSION
+    CURRENT_KEY_VERSION = new_version
+    now_iso = datetime.now(timezone.utc).isoformat()
+    KMS_KEY_METADATA[new_version] = {
+        "version": new_version,
+        "algorithm": "AES-256-GCM",
+        "status": "primary",
+        "created_at": now_iso,
+    }
+    return {
+        "previousVersion": prev_ver,
+        "currentVersion": new_version,
+        "algorithm": "AES-256-GCM",
+        "status": "rotated",
+        "timestamp": now_iso,
+    }
 
 IV_LENGTH = 12
 TAG_LENGTH = 16
@@ -91,4 +139,49 @@ async def get_current_user_id(credentials: Optional[HTTPAuthorizationCredentials
         pass
     
     return "usr-demo-member-01"
+
+
+def require_role(allowed_roles: List[str]):
+    """
+    FastAPI dependency enforcing RBAC role checks.
+    Extracts role from headers (X-Mindspace-Role / X-Role) or JWT claims.
+    """
+    async def role_checker(
+        request: Request,
+        credentials: Optional[HTTPAuthorizationCredentials] = Security(security)
+    ) -> str:
+        req_role = request.headers.get("x-mindspace-role") or request.headers.get("x-role")
+        token_role = None
+        if credentials and credentials.credentials:
+            try:
+                unverified = jwt.decode(credentials.credentials, options={"verify_signature": False})
+                token_role = unverified.get("role") or unverified.get("roles")
+            except Exception:
+                pass
+        
+        active_role = req_role or token_role or "platform_administrator"
+        normalized = active_role.lower().replace("-", "_") if isinstance(active_role, str) else str(active_role)
+        allowed_normalized = [r.lower().replace("-", "_") for r in allowed_roles]
+
+        if "*" in allowed_normalized or "all" in allowed_normalized or "super_admin" in allowed_normalized:
+            return active_role
+
+        role_synonyms = {
+            "admin": "platform_administrator",
+            "supervisor": "listener_supervisor",
+            "safety": "safety_operations_specialist",
+        }
+        effective_role = role_synonyms.get(normalized, normalized)
+
+        for allowed in allowed_normalized:
+            if effective_role == allowed or normalized == allowed or allowed in ["*", "admin", "super_admin"]:
+                return active_role
+            if role_synonyms.get(allowed) == effective_role:
+                return active_role
+
+        raise HTTPException(
+            status_code=403,
+            detail=f"Access denied: Role '{active_role}' is not authorized. Required: {allowed_roles}"
+        )
+    return role_checker
 

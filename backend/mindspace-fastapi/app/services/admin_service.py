@@ -7,7 +7,7 @@ from datetime import datetime
 import uuid
 
 from app.core.database import get_db
-from app.models.admin import AdminDB, AdminStatsDB
+from app.models.admin import AdminDB, AdminStatsDB, AdminRoleEnum
 from app.schemas.admin import (
     AdminCreateRequest,
     AdminUpdateRequest,
@@ -19,12 +19,43 @@ from app.services.base import BaseService
 
 class AdminService(BaseService):
     async def get_by_id(self, admin_id: str) -> AdminDB:
-        stmt = select(AdminDB).where(AdminDB.id == admin_id).options(selectinload(AdminDB.stats))
+        stmt = (
+            select(AdminDB)
+            .where((AdminDB.id == admin_id) | (AdminDB.user_id == admin_id))
+            .options(selectinload(AdminDB.stats))
+        )
         result = await self.db.execute(stmt)
         admin = result.scalar_one_or_none()
         if not admin:
             raise HTTPException(status_code=404, detail=f"Admin with ID {admin_id} not found")
         return admin
+
+    async def check_permission(self, admin_id: str, permission: str) -> bool:
+        try:
+            stmt = select(AdminDB).where((AdminDB.id == admin_id) | (AdminDB.user_id == admin_id))
+            res = await self.db.execute(stmt)
+            admin = res.scalar_one_or_none()
+            if not admin:
+                return False
+            
+            perms = admin.permissions or []
+            if "*" in perms or "all" in perms:
+                return True
+            if getattr(admin, "role", None) in [AdminRoleEnum.SUPER_ADMIN, "super_admin"]:
+                return True
+            return permission in perms
+        except Exception:
+            return False
+
+    async def get_by_department(self, department_id: str) -> List[AdminDB]:
+        stmt = (
+            select(AdminDB)
+            .options(selectinload(AdminDB.stats))
+            .where(AdminDB.department.ilike(f"%{department_id}%"))
+            .order_by(AdminDB.created_at.desc())
+        )
+        res = await self.db.execute(stmt)
+        return list(res.scalars().all())
 
     async def get_stats(self, admin_id: str) -> AdminStatsDB:
         admin = await self.get_by_id(admin_id)

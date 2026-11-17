@@ -5,15 +5,23 @@ import { redirect } from "@/i18n/navigation";
 import { getServerSession } from "@/modules/server/auth/get-session";
 import {
   workspaceForRoles,
+  normalizeRoleCode,
   type MindspaceRoleCode,
-} from "@/modules/client/mindspace-dashboard/role-map";
+} from "./role-map";
 
 const slugToRole: Record<string, MindspaceRoleCode> = {
   member: "member",
   listener: "listener",
   "listener-supervisor": "listener_supervisor",
+  listener_supervisor: "listener_supervisor",
+  supervisor: "listener_supervisor",
   "safety-operations": "safety_operations_specialist",
+  safety_operations: "safety_operations_specialist",
+  safety_operations_specialist: "safety_operations_specialist",
+  safety: "safety_operations_specialist",
   "platform-administrator": "platform_administrator",
+  platform_administrator: "platform_administrator",
+  admin: "platform_administrator",
 };
 
 /**
@@ -22,18 +30,17 @@ const slugToRole: Record<string, MindspaceRoleCode> = {
  * auth handling.
  */
 export async function enforceMindspaceRoleAccess(slug: string): Promise<void> {
-  const required = slugToRole[slug];
+  const required = slugToRole[slug] || normalizeRoleCode(slug);
   if (!required) return;
 
   const session = await getServerSession();
   if (!session) return;
 
   const roleValue = session.user?.role || session.session?.activeRole || "";
-  const knownRoles = new Set<string>(Object.values(slugToRole));
   const roles = roleValue
     .split(",")
-    .map((role) => role.trim())
-    .filter((role) => knownRoles.has(role));
+    .map((role) => normalizeRoleCode(role.trim()))
+    .filter((role): role is MindspaceRoleCode => role !== null);
 
   // Legacy/dev roles (e.g. "patient") have no MindSpace workspace of their
   // own; redirecting them here would loop, so let the dashboard render.

@@ -42,6 +42,7 @@ app.include_router(operations.router)
 app.include_router(admins.router)
 app.include_router(supervisors.router)
 app.include_router(safetys.router)
+app.include_router(safetys.safety_alias_router)
 
 @app.get("/api-docs", include_in_schema=False)
 async def api_docs_redirect():

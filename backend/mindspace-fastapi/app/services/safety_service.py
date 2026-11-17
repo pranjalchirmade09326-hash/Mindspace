@@ -19,7 +19,11 @@ from app.services.base import BaseService
 
 class SafetyService(BaseService):
     async def get_by_id(self, safety_id: str) -> SafetyDB:
-        stmt = select(SafetyDB).where(SafetyDB.id == safety_id).options(selectinload(SafetyDB.stats))
+        stmt = (
+            select(SafetyDB)
+            .where((SafetyDB.id == safety_id) | (SafetyDB.user_id == safety_id))
+            .options(selectinload(SafetyDB.stats))
+        )
         result = await self.db.execute(stmt)
         safety = result.scalar_one_or_none()
         if not safety:

@@ -21,6 +21,33 @@ async def admin_health_check(service: AdminService = Depends(get_admin_service))
     return await service.check_health()
 
 
+@router.get("/department/{department_id}", response_model=List[AdminResponse])
+async def get_admins_by_department(
+    department_id: str,
+    service: AdminService = Depends(get_admin_service),
+):
+    """Fetch admins by department"""
+    admins = await service.get_by_department(department_id)
+    return [AdminResponse.model_validate(admin) for admin in admins]
+
+
+@router.get("/{id}/permissions/{permission}")
+async def check_admin_permission(
+    id: str,
+    permission: str,
+    service: AdminService = Depends(get_admin_service),
+):
+    """Check whether admin has requested permission in PostgreSQL"""
+    has_perm = await service.check_permission(id, permission)
+    return {
+        "hasPermission": has_perm,
+        "has_permission": has_perm,
+        "adminId": id,
+        "admin_id": id,
+        "permission": permission,
+    }
+
+
 @router.get("/{id}", response_model=AdminResponse)
 async def get_admin_by_id(id: str, service: AdminService = Depends(get_admin_service)):
     """Fetch admin by ID with stats"""

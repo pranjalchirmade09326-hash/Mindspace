@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 from app.core.database import get_db
+from app.core.security import encrypt_content
 from app.models.member import AppPrincipal, MemberProfile, RoleAssignment
 from app.models.peer import ListenerProfile, ListenerAvailability, ListenerMatchRequest, ListenerMatch, PeerConversation
 from app.models.operations import (
@@ -281,6 +282,69 @@ class OperationsService(BaseService):
         await self.db.commit()
         return {"status": "updated", "id": report_id}
 
+    async def create_conduct_report(self, user_id: str, payload: Dict[str, Any]) -> dict:
+        raw_cid = payload.get("conversation_id") or payload.get("conversationId")
+        if not raw_cid:
+            raise HTTPException(status_code=400, detail="Missing conversation_id.")
+        c_uuid = uuid.UUID(str(raw_cid))
+
+        details = payload.get("details") or payload.get("notes") or ""
+        ct, kv = (None, None)
+        if details:
+            ct, kv = encrypt_content(str(details))
+
+        rep = ConductReport(
+            id=uuid.uuid4(),
+            conversation_id=c_uuid,
+            reporter_user_id=user_id or payload.get("reporter_user_id") or "usr-demo-member-01",
+            reported_user_id=payload.get("reported_user_id") or payload.get("reportedUserId"),
+            category_code=payload.get("category_code") or payload.get("categoryCode", "GENERAL"),
+            details_ciphertext=ct,
+            key_version=kv,
+            severity=payload.get("severity", "routine"),
+            report_state="open",
+            createdAt=datetime.now(timezone.utc)
+        )
+        self.db.add(rep)
+        await self.db.commit()
+        await self.db.refresh(rep)
+
+        return {
+            "status": "created",
+            "report_id": str(rep.id),
+            "id": str(rep.id),
+            "conversation_id": str(rep.conversation_id),
+            "category_code": rep.category_code,
+            "report_state": rep.report_state,
+            "severity": rep.severity,
+            "created_at": rep.createdAt.isoformat()
+        }
+
+    async def toggle_listener_active(self, user_id: str) -> dict:
+        stmt = select(ListenerProfile).where(ListenerProfile.user_id == user_id)
+        res = await self.db.execute(stmt)
+        profile = res.scalar_one_or_none()
+        if not profile:
+            profile = ListenerProfile(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                application_state="approved",
+                eligibility_state="eligible",
+                capacity_limit=3,
+                active_now=True
+            )
+            self.db.add(profile)
+        else:
+            profile.active_now = not getattr(profile, "active_now", False)
+
+        await self.db.commit()
+        await self.db.refresh(profile)
+        return {
+            "status": "success",
+            "active_now": profile.active_now,
+            "is_online": profile.active_now
+        }
+
     async def get_supervisor_assignments(self) -> list[dict]:
         stmt = select(ListenerSupervisorAssignment).where(
             ListenerSupervisorAssignment.assignment_state == "active"
@@ -413,6 +477,161 @@ class OperationsService(BaseService):
             for f in followups
         ]
 
+    async def create_safety_case_action(self, case_id: str, user_id: str, payload: Dict[str, Any]) -> dict:
+        case_uuid = uuid.UUID(case_id)
+        stmt = select(SafetyCase).where(SafetyCase.id == case_uuid)
+        res = await self.db.execute(stmt)
+        case = res.scalar_one_or_none()
+        if not case:
+            raise HTTPException(status_code=404, detail="Safety case not found.")
+
+        raw_state = payload.get("action_state") or payload.get("actionState", "completed")
+        state_map = {"completed": "completed", "attempted": "attempted", "failed": "failed"}
+        action_state = state_map.get(raw_state.lower(), "completed")
+
+        action_type = payload.get("action_type") or payload.get("actionType", "triage_assessment")
+        actor_id = payload.get("actor_user_id") or payload.get("actorUserId") or user_id or "usr-demo-safety-01"
+        resource_id_str = payload.get("resource_id") or payload.get("resourceId")
+        resource_uuid = uuid.UUID(resource_id_str) if resource_id_str else None
+
+        notes = payload.get("notes") or payload.get("details", "")
+        ct, kv = (None, None)
+        if notes:
+            ct, kv = encrypt_content(str(notes))
+
+        action = SafetyCaseAction(
+            id=uuid.uuid4(),
+            case_id=case_uuid,
+            actor_user_id=actor_id,
+            action_type=action_type,
+            action_state=action_state,
+            resource_id=resource_uuid,
+            details_ciphertext=ct,
+            key_version=kv,
+            occurred_at=datetime.now(timezone.utc),
+        )
+        self.db.add(action)
+
+        audit = AuditEvent(
+            id=uuid.uuid4(),
+            actor_user_id=actor_id,
+            action_code="safety_case_action_logged",
+            resource_type="safety_case_action",
+            resource_id=str(action.id),
+            outcome="success",
+            details={"case_id": str(case_uuid), "action_type": action_type, "action_state": action_state}
+        )
+        self.db.add(audit)
+        await self.db.commit()
+
+        return {
+            "id": str(action.id),
+            "caseId": str(action.case_id),
+            "actorUserId": action.actor_user_id,
+            "actionType": action.action_type,
+            "actionState": action.action_state,
+            "resourceId": str(action.resource_id) if action.resource_id else None,
+            "occurredAt": action.occurred_at.isoformat(),
+        }
+
+    async def update_safety_case(self, case_id: str, payload: Dict[str, Any]) -> dict:
+        case_uuid = uuid.UUID(case_id)
+        stmt = select(SafetyCase).where(SafetyCase.id == case_uuid)
+        res = await self.db.execute(stmt)
+        case = res.scalar_one_or_none()
+        if not case:
+            raise HTTPException(status_code=404, detail="Safety case not found.")
+
+        new_state = payload.get("case_state") or payload.get("caseState")
+        if new_state:
+            state_clean = new_state.lower().replace("-", "_").replace(" ", "_")
+            if state_clean in ["new", "queued", "assigned", "in_progress", "handed_off", "closed"]:
+                case.case_state = state_clean
+            elif state_clean in ["review", "in_review"]:
+                case.case_state = "in_progress"
+
+        new_priority = payload.get("priority_code") or payload.get("priorityCode")
+        if new_priority:
+            priority_map = {
+                "p0_emergency": "emergency",
+                "emergency": "emergency",
+                "p1_urgent": "urgent",
+                "urgent": "urgent",
+                "p2_elevated": "routine",
+                "routine": "routine",
+            }
+            case.priority_code = priority_map.get(new_priority.lower(), "routine")
+
+        new_res = payload.get("resolution_code") or payload.get("resolutionCode")
+        if new_res:
+            case.resolution_code = new_res
+            if not case.closed_at:
+                case.closed_at = datetime.now(timezone.utc)
+
+        responder = payload.get("assigned_responder_user_id") or payload.get("assignedResponderUserId")
+        if responder:
+            case.assigned_responder_user_id = responder
+            if not case.acknowledged_at:
+                case.acknowledged_at = datetime.now(timezone.utc)
+
+        if case.case_state == "closed" and not case.closed_at:
+            case.closed_at = datetime.now(timezone.utc)
+
+        audit = AuditEvent(
+            id=uuid.uuid4(),
+            actor_user_id=case.assigned_responder_user_id or "usr-demo-safety-01",
+            action_code="safety_case_updated",
+            resource_type="safety_case",
+            resource_id=str(case.id),
+            outcome="success",
+            details={
+                "case_state": case.case_state,
+                "priority_code": case.priority_code,
+                "resolution_code": case.resolution_code,
+            }
+        )
+        self.db.add(audit)
+        await self.db.commit()
+
+        return {
+            "id": str(case.id),
+            "memberId": case.member_id,
+            "caseState": case.case_state,
+            "priorityCode": case.priority_code,
+            "resolutionCode": case.resolution_code,
+            "assignedResponderUserId": case.assigned_responder_user_id,
+            "acknowledgedAt": case.acknowledged_at.isoformat() if case.acknowledged_at else None,
+            "closedAt": case.closed_at.isoformat() if case.closed_at else None,
+        }
+
+    async def update_safety_followup(self, followup_id: str, payload: Dict[str, Any]) -> dict:
+        f_uuid = uuid.UUID(followup_id)
+        stmt = select(Followup).where(Followup.id == f_uuid)
+        res = await self.db.execute(stmt)
+        followup = res.scalar_one_or_none()
+        if not followup:
+            raise HTTPException(status_code=404, detail="Followup not found.")
+
+        raw_state = payload.get("followup_state") or payload.get("followupState") or payload.get("status", "responded")
+        state_map = {
+            "completed": "responded",
+            "responded": "responded",
+            "scheduled": "scheduled",
+            "sent": "sent",
+            "skipped": "skipped",
+            "cancelled": "cancelled",
+        }
+        followup.followup_state = state_map.get(raw_state.lower(), "responded")
+        followup.completed_at = datetime.now(timezone.utc)
+
+        await self.db.commit()
+        return {
+            "id": str(followup.id),
+            "memberId": followup.member_id,
+            "followupState": followup.followup_state,
+            "completedAt": followup.completed_at.isoformat() if followup.completed_at else None,
+        }
+
     # ─── PLATFORM ADMINISTRATION & GOVERNANCE ───────────────────────────────────
 
     async def get_admin_roles(self) -> list[dict]:
@@ -431,6 +650,84 @@ class OperationsService(BaseService):
             }
             for r in roles
         ]
+
+    async def assign_admin_role(self, user_id: str, payload: Dict[str, Any]) -> dict:
+        target_user = payload.get("user_id") or payload.get("userId")
+        role_code = payload.get("role_code") or payload.get("role") or payload.get("roleCode")
+        if not target_user or not role_code:
+            raise HTTPException(status_code=400, detail="Missing user_id or role_code.")
+
+        p_res = await self.db.execute(select(AppPrincipal).where(AppPrincipal.user_id == target_user))
+        if not p_res.scalar_one_or_none():
+            self.db.add(AppPrincipal(user_id=target_user, account_state="active"))
+            await self.db.flush()
+
+        role_assignment = RoleAssignment(
+            id=uuid.uuid4(),
+            user_id=target_user,
+            role_code=role_code,
+            assignment_state="active",
+            granted_by_user_id=user_id or "usr-demo-admin-01",
+            granted_at=datetime.now(timezone.utc),
+            decision_reason=payload.get("decision_reason") or payload.get("reason", "Admin role assignment")
+        )
+        self.db.add(role_assignment)
+
+        audit = AuditEvent(
+            id=uuid.uuid4(),
+            actor_user_id=user_id or "usr-demo-admin-01",
+            action_code="role_assigned",
+            resource_type="role_assignment",
+            resource_id=str(role_assignment.id),
+            outcome="success",
+            details={"user_id": target_user, "role_code": role_code}
+        )
+        self.db.add(audit)
+        await self.db.commit()
+
+        return {
+            "id": str(role_assignment.id),
+            "userId": role_assignment.user_id,
+            "roleCode": role_assignment.role_code,
+            "assignmentState": role_assignment.assignment_state,
+            "grantedByUserId": role_assignment.granted_by_user_id,
+            "grantedAt": role_assignment.granted_at.isoformat(),
+        }
+
+    async def revoke_admin_role(self, role_id: str, actor_user_id: str) -> dict:
+        r_uuid = uuid.UUID(role_id) if len(role_id) == 36 else None
+        stmt = select(RoleAssignment)
+        if r_uuid:
+            stmt = stmt.where(RoleAssignment.id == r_uuid)
+        else:
+            stmt = stmt.where(RoleAssignment.user_id == role_id)
+        res = await self.db.execute(stmt)
+        assignment = res.scalar_one_or_none()
+        if not assignment:
+            raise HTTPException(status_code=404, detail="Role assignment not found.")
+
+        assignment.assignment_state = "revoked"
+        assignment.revoked_at = datetime.now(timezone.utc)
+
+        audit = AuditEvent(
+            id=uuid.uuid4(),
+            actor_user_id=actor_user_id or "usr-demo-admin-01",
+            action_code="role_revoked",
+            resource_type="role_assignment",
+            resource_id=str(assignment.id),
+            outcome="success",
+            details={"user_id": assignment.user_id, "role_code": assignment.role_code}
+        )
+        self.db.add(audit)
+        await self.db.commit()
+
+        return {
+            "status": "revoked",
+            "id": str(assignment.id),
+            "userId": assignment.user_id,
+            "roleCode": assignment.role_code,
+            "revokedAt": assignment.revoked_at.isoformat()
+        }
 
     async def get_workflow_definitions(self) -> list[dict]:
         stmt = select(WorkflowDefinition).order_by(WorkflowDefinition.created_at).limit(50)

@@ -122,7 +122,7 @@ export default function DemoSignInPage() {
             Back to Home
           </Link>
           <Link
-            href={`/${locale}/(auth)/login`}
+            href={`/${locale}/login`}
             className="flex items-center gap-2 text-emerald-600 hover:text-emerald-700 transition-colors font-medium"
           >
             Regular Sign In

@@ -1,11 +1,12 @@
-from app.core.security import encrypt_content, decrypt_content, CURRENT_KEY_VERSION, get_encryption_keys
+from app.core import security
+from app.core.security import encrypt_content, decrypt_content, get_encryption_keys
 import jwt
 
 def test_encryption_roundtrip():
     original_text = "MindSpace confidential emotional reflection note"
     packed, key_ver = encrypt_content(original_text)
     assert packed is not None
-    assert key_ver == CURRENT_KEY_VERSION
+    assert key_ver == security.CURRENT_KEY_VERSION
     
     decrypted = decrypt_content(packed, key_ver)
     assert decrypted == original_text
@@ -21,8 +22,8 @@ def test_decryption_invalid():
 
 def test_encryption_keys():
     keys = get_encryption_keys()
-    assert CURRENT_KEY_VERSION in keys
-    assert len(keys[CURRENT_KEY_VERSION]) == 32
+    assert security.CURRENT_KEY_VERSION in keys
+    assert len(keys[security.CURRENT_KEY_VERSION]) == 32
 
 def test_token_decoding_logic():
     token = jwt.encode({"sub": "usr-custom-member-42"}, "secret_key_at_least_32_bytes_long_mindspace_secret", algorithm="HS256")

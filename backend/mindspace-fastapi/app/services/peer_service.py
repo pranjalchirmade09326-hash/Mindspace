@@ -1,10 +1,12 @@
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc, func
+from sqlalchemy import select, desc, func, update
 from sqlalchemy.orm import aliased
 from app.core.database import get_db
 from app.core.security import encrypt_content, decrypt_content
+from app.core.websocket_manager import manager
 from app.models.peer import ListenerMatchRequest, ListenerMatch, PeerConversation, PeerMessage, ListenerProfile
+from app.models.operations import ListenerFeedback
 from app.models.member import AppPrincipal, MemberProfile
 from app.schemas.peer import (
     MatchRequestCreate,
@@ -12,9 +14,11 @@ from app.schemas.peer import (
     PeerMessageCreate,
     SoapNoteCreate,
     ListenerProfileUpdate,
+    FeedbackCreate,
 )
 from app.services.base import BaseService
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from typing import Optional, List, Dict, Any
 import uuid
 
 
@@ -35,7 +39,8 @@ class PeerService(BaseService):
                 "name": display_name or lp.user_id,
                 "eligibility": lp.eligibility_state,
                 "capacity": lp.capacity_limit,
-                "rating": "4.9 ★"
+                "rating": f"{lp.rating:.1f} ★" if hasattr(lp, "rating") and lp.rating else "4.9 ★",
+                "active_now": getattr(lp, "active_now", False),
             })
         return listeners
 
@@ -50,17 +55,31 @@ class PeerService(BaseService):
                 "id": str(r.id),
                 "member_id": r.member_id,
                 "status": r.request_state,
+                "request_state": r.request_state,
+                "support_topic": getattr(r, "support_topic", None),
+                "preferred_channel": getattr(r, "preferred_channel", "chat"),
                 "created_at": r.created_at.isoformat()
             }
             for r in items
         ]
 
     async def create_match_request(self, user_id: str, payload: MatchRequestCreate) -> dict:
+        # Ensure AppPrincipal exists
+        p_res = await self.db.execute(select(AppPrincipal).where(AppPrincipal.user_id == user_id))
+        if not p_res.scalar_one_or_none():
+            self.db.add(AppPrincipal(user_id=user_id, account_state="active"))
+            await self.db.flush()
+
         req = ListenerMatchRequest(
             id=uuid.uuid4(),
             member_id=user_id,
             request_state="queued",
-            created_at=datetime.utcnow()
+            support_topic=payload.support_topic,
+            preferred_channel=payload.preferred_channel or "chat",
+            preferred_languages=payload.preferred_languages or ["en"],
+            notes=payload.notes,
+            created_at=datetime.utcnow(),
+            expires_at=datetime.utcnow() + timedelta(minutes=30),
         )
         self.db.add(req)
         await self.db.commit()
@@ -70,7 +89,328 @@ class PeerService(BaseService):
             "id": str(req.id),
             "member_id": req.member_id,
             "status": req.request_state,
+            "request_state": req.request_state,
+            "support_topic": req.support_topic,
+            "preferred_channel": req.preferred_channel,
+            "preferred_languages": req.preferred_languages,
+            "notes": req.notes,
             "created_at": req.created_at.isoformat()
+        }
+
+    async def get_match_request_status(self, user_id: str, request_id: str) -> dict:
+        try:
+            req_uuid = uuid.UUID(request_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid request ID format.")
+
+        stmt = select(ListenerMatchRequest).where(ListenerMatchRequest.id == req_uuid)
+        res = await self.db.execute(stmt)
+        req = res.scalar_one_or_none()
+        if not req:
+            raise HTTPException(status_code=404, detail="Match request not found.")
+
+        matched_listener = None
+        conversation_id = None
+        match_id = None
+
+        if req.request_state == "matched":
+            m_stmt = (
+                select(ListenerMatch)
+                .where(ListenerMatch.request_id == req.id)
+                .order_by(desc(ListenerMatch.offered_at))
+            )
+            m_res = await self.db.execute(m_stmt)
+            match = m_res.scalar_one_or_none()
+            if match:
+                match_id = str(match.id)
+                c_stmt = select(PeerConversation).where(PeerConversation.match_id == match.id)
+                c_res = await self.db.execute(c_stmt)
+                conv = c_res.scalar_one_or_none()
+                if conv:
+                    conversation_id = str(conv.id)
+
+                l_stmt = (
+                    select(ListenerProfile, MemberProfile.display_name)
+                    .outerjoin(MemberProfile, ListenerProfile.user_id == MemberProfile.user_id)
+                    .where(ListenerProfile.id == match.listener_id)
+                )
+                l_res = await self.db.execute(l_stmt)
+                l_row = l_res.first()
+                if l_row:
+                    lp, display_name = l_row
+                    matched_listener = {
+                        "id": str(lp.id),
+                        "user_id": lp.user_id,
+                        "display_name": display_name or lp.user_id,
+                        "rating": getattr(lp, "rating", 5.0)
+                    }
+
+        return {
+            "id": str(req.id),
+            "member_id": req.member_id,
+            "request_state": req.request_state,
+            "status": req.request_state,
+            "support_topic": getattr(req, "support_topic", None),
+            "preferred_channel": getattr(req, "preferred_channel", "chat"),
+            "conversation_id": conversation_id,
+            "match_id": match_id,
+            "listener": matched_listener,
+            "created_at": req.created_at.isoformat()
+        }
+
+    async def cancel_match_request(self, user_id: str, request_id: str) -> dict:
+        try:
+            req_uuid = uuid.UUID(request_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid request ID format.")
+
+        stmt = select(ListenerMatchRequest).where(ListenerMatchRequest.id == req_uuid)
+        res = await self.db.execute(stmt)
+        req = res.scalar_one_or_none()
+        if not req:
+            raise HTTPException(status_code=404, detail="Match request not found.")
+
+        if req.request_state == "cancelled":
+            return {"status": "cancelled", "id": str(req.id)}
+
+        if req.request_state in ["matched", "closed"]:
+            raise HTTPException(status_code=400, detail="Cannot cancel request that has already been matched or closed.")
+
+        req.request_state = "cancelled"
+        req.closed_at = datetime.utcnow()
+        await self.db.commit()
+        return {"status": "cancelled", "id": str(req.id)}
+
+    async def list_active_match_requests(self, user_id: str) -> list[dict]:
+        stmt = (
+            select(ListenerMatchRequest, MemberProfile.display_name)
+            .outerjoin(MemberProfile, ListenerMatchRequest.member_id == MemberProfile.user_id)
+            .where(ListenerMatchRequest.request_state == "queued")
+            .order_by(ListenerMatchRequest.created_at.asc())
+        )
+        res = await self.db.execute(stmt)
+        rows = res.all()
+        now = datetime.utcnow()
+
+        results = []
+        for req, member_name in rows:
+            created_at = req.created_at
+            waiting_mins = max(0, int((now - created_at).total_seconds() / 60)) if created_at else 0
+            results.append({
+                "id": str(req.id),
+                "member_id": req.member_id,
+                "member_name": member_name or "Anonymous Member",
+                "support_topic": getattr(req, "support_topic", None) or "General check-in",
+                "preferred_channel": getattr(req, "preferred_channel", "chat"),
+                "created_at": created_at.isoformat() if created_at else now.isoformat(),
+                "waiting_minutes": waiting_mins,
+                "urgency": "routine"
+            })
+        return results
+
+    async def accept_match_request(self, user_id: str, request_id: str) -> dict:
+        try:
+            req_uuid = uuid.UUID(request_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid request ID format.")
+
+        # Ensure listener profile exists
+        prof_stmt = select(ListenerProfile).where(ListenerProfile.user_id == user_id)
+        p_res = await self.db.execute(prof_stmt)
+        listener = p_res.scalar_one_or_none()
+        if not listener:
+            # Check or create principal
+            l_principal = await self.db.execute(select(AppPrincipal).where(AppPrincipal.user_id == user_id))
+            if not l_principal.scalar_one_or_none():
+                self.db.add(AppPrincipal(user_id=user_id, account_state="active"))
+                await self.db.flush()
+
+            listener = ListenerProfile(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                application_state="approved",
+                eligibility_state="eligible",
+                capacity_limit=3,
+                profile_languages=["English", "Hindi"],
+                active_now=True
+            )
+            self.db.add(listener)
+            await self.db.flush()
+
+        # Check workload capacity limit
+        open_convs_res = await self.db.execute(
+            select(func.count(PeerConversation.id)).where(
+                PeerConversation.listener_id == listener.id,
+                PeerConversation.conversation_state == "open"
+            )
+        )
+        open_count = open_convs_res.scalar() or 0
+        if open_count >= (listener.capacity_limit or 1):
+            raise HTTPException(status_code=400, detail="CAPACITY_LIMIT_EXCEEDED")
+
+        # Atomic conditional update to claim request
+        stmt = (
+            update(ListenerMatchRequest)
+            .where(
+                ListenerMatchRequest.id == req_uuid,
+                ListenerMatchRequest.request_state == "queued"
+            )
+            .values(request_state="matched")
+        )
+        res = await self.db.execute(stmt)
+        if res.rowcount == 0:
+            # Check if row exists or was already claimed/cancelled
+            chk_stmt = select(ListenerMatchRequest).where(ListenerMatchRequest.id == req_uuid)
+            chk_res = await self.db.execute(chk_stmt)
+            existing = chk_res.scalar_one_or_none()
+            if not existing:
+                raise HTTPException(status_code=404, detail="Match request not found.")
+            if existing.request_state == "cancelled":
+                raise HTTPException(status_code=409, detail="REQUEST_CANCELLED")
+            raise HTTPException(status_code=409, detail="REQUEST_ALREADY_CLAIMED")
+
+        # Fetch the claimed request
+        req = (await self.db.execute(select(ListenerMatchRequest).where(ListenerMatchRequest.id == req_uuid))).scalar_one()
+
+        # Create ListenerMatch
+        match = ListenerMatch(
+            id=uuid.uuid4(),
+            request_id=req.id,
+            listener_id=listener.id,
+            match_state="accepted",
+            offered_at=datetime.utcnow(),
+            accepted_at=datetime.utcnow()
+        )
+        self.db.add(match)
+        await self.db.flush()
+
+        # Create PeerConversation
+        channel = getattr(req, "preferred_channel", "chat") or "chat"
+        conv = PeerConversation(
+            id=uuid.uuid4(),
+            match_id=match.id,
+            member_id=req.member_id,
+            listener_id=listener.id,
+            channel=channel,
+            conversation_state="open",
+            started_at=datetime.utcnow()
+        )
+        self.db.add(conv)
+        await self.db.flush()
+
+        # Create initial encrypted welcome message
+        topic_text = getattr(req, "support_topic", None) or "General Support"
+        welcome_text = f"Hello! A peer listener has connected with you. Topic: {topic_text}."
+        ct, kv = encrypt_content(welcome_text)
+        msg = PeerMessage(
+            id=uuid.uuid4(),
+            conversation_id=conv.id,
+            sequence_no=1,
+            sender_user_id=listener.user_id,
+            content_ciphertext=ct,
+            key_version=kv,
+            delivery_state="delivered",
+            sent_at=datetime.utcnow()
+        )
+        self.db.add(msg)
+        await self.db.commit()
+
+        # Broadcast room ready signal if WebSocket listeners exist
+        await manager.broadcast(str(conv.id), {
+            "type": "match_accepted",
+            "conversation_id": str(conv.id),
+            "listener_id": str(listener.id),
+            "channel": channel
+        })
+
+        return {
+            "status": "accepted",
+            "match_id": str(match.id),
+            "conversation_id": str(conv.id),
+            "channel": channel,
+            "member_id": req.member_id
+        }
+
+    async def decline_match_request(self, user_id: str, request_id: str) -> dict:
+        try:
+            req_uuid = uuid.UUID(request_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid request ID format.")
+
+        prof_stmt = select(ListenerProfile).where(ListenerProfile.user_id == user_id)
+        p_res = await self.db.execute(prof_stmt)
+        listener = p_res.scalar_one_or_none()
+        if not listener:
+            listener = ListenerProfile(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                application_state="approved",
+                eligibility_state="eligible",
+                capacity_limit=3
+            )
+            self.db.add(listener)
+            await self.db.flush()
+
+        # Record decline on ListenerMatch
+        m_stmt = select(ListenerMatch).where(
+            ListenerMatch.request_id == req_uuid,
+            ListenerMatch.listener_id == listener.id
+        )
+        m_res = await self.db.execute(m_stmt)
+        match = m_res.scalar_one_or_none()
+        if match:
+            match.match_state = "declined"
+            match.end_reason_code = "listener_declined"
+            match.ended_at = datetime.utcnow()
+        else:
+            match = ListenerMatch(
+                id=uuid.uuid4(),
+                request_id=req_uuid,
+                listener_id=listener.id,
+                match_state="declined",
+                offered_at=datetime.utcnow(),
+                ended_at=datetime.utcnow(),
+                end_reason_code="listener_declined"
+            )
+            self.db.add(match)
+
+        # Ensure request remains queued for another listener
+        req_res = await self.db.execute(select(ListenerMatchRequest).where(ListenerMatchRequest.id == req_uuid))
+        req = req_res.scalar_one_or_none()
+        if req and req.request_state == "offered":
+            req.request_state = "queued"
+
+        await self.db.commit()
+        return {"status": "declined", "reassigned": True}
+
+    async def toggle_listener_active(self, user_id: str) -> dict:
+        stmt = select(ListenerProfile).where(ListenerProfile.user_id == user_id)
+        res = await self.db.execute(stmt)
+        profile = res.scalar_one_or_none()
+        if not profile:
+            p_res = await self.db.execute(select(AppPrincipal).where(AppPrincipal.user_id == user_id))
+            if not p_res.scalar_one_or_none():
+                self.db.add(AppPrincipal(user_id=user_id, account_state="active"))
+                await self.db.flush()
+
+            profile = ListenerProfile(
+                id=uuid.uuid4(),
+                user_id=user_id,
+                application_state="approved",
+                eligibility_state="eligible",
+                capacity_limit=3,
+                active_now=True
+            )
+            self.db.add(profile)
+        else:
+            profile.active_now = not profile.active_now
+
+        await self.db.commit()
+        await self.db.refresh(profile)
+        return {
+            "status": "success",
+            "active_now": profile.active_now,
+            "is_online": profile.active_now
         }
 
     async def list_conversations(self, user_id: str) -> list[dict]:
@@ -208,7 +548,8 @@ class PeerService(BaseService):
         }
 
     async def list_messages(self, conversation_id: str, user_id: str) -> list[dict]:
-        stmt = select(PeerMessage).where(PeerMessage.conversation_id == uuid.UUID(conversation_id)).order_by(PeerMessage.sequence_no)
+        c_uuid = uuid.UUID(conversation_id)
+        stmt = select(PeerMessage).where(PeerMessage.conversation_id == c_uuid).order_by(PeerMessage.sequence_no)
         res = await self.db.execute(stmt)
         items = res.scalars().all()
         return [
@@ -224,6 +565,15 @@ class PeerService(BaseService):
 
     async def send_message(self, user_id: str, conversation_id: str, payload: PeerMessageCreate) -> dict:
         c_uuid = uuid.UUID(conversation_id)
+
+        # Check if conversation is open
+        conv_res = await self.db.execute(select(PeerConversation).where(PeerConversation.id == c_uuid))
+        conv = conv_res.scalar_one_or_none()
+        if not conv:
+            raise HTTPException(status_code=404, detail="Conversation not found.")
+        if conv.conversation_state == "closed":
+            raise HTTPException(status_code=400, detail="CONVERSATION_CLOSED")
+
         seq_q = await self.db.execute(select(func.coalesce(func.max(PeerMessage.sequence_no), 0)).where(PeerMessage.conversation_id == c_uuid))
         seq = (seq_q.scalar() or 0) + 1
 
@@ -241,12 +591,21 @@ class PeerService(BaseService):
         self.db.add(msg)
         await self.db.commit()
 
-        return {
+        msg_dict = {
             "id": str(msg.id),
             "conversation_id": str(msg.conversation_id),
+            "sender_user_id": user_id,
             "content": payload.content,
             "sent_at": msg.sent_at.isoformat()
         }
+
+        # Broadcast via WebSocket manager to both participants in room
+        await manager.broadcast(str(c_uuid), {
+            "type": "new_message",
+            "message": msg_dict
+        })
+
+        return msg_dict
 
     async def close_conversation(self, user_id: str, conversation_id: str) -> dict:
         c_uuid = None
@@ -258,13 +617,82 @@ class PeerService(BaseService):
         stmt = select(PeerConversation).where(PeerConversation.id == c_uuid)
         res = await self.db.execute(stmt)
         conv = res.scalar_one_or_none()
-        if conv:
+        if not conv:
+            return {"status": "success", "conversation_id": str(c_uuid), "conversation_state": "closed", "state": "closed"}
+
+        # Idempotent closure
+        if conv.conversation_state != "closed":
             conv.conversation_state = "closed"
             conv.ended_at = datetime.utcnow()
             conv.closed_by_user_id = user_id
+
+            # End linked match
+            m_res = await self.db.execute(select(ListenerMatch).where(ListenerMatch.id == conv.match_id))
+            match = m_res.scalar_one_or_none()
+            if match and not match.ended_at:
+                match.ended_at = datetime.utcnow()
+                match.end_reason_code = "completed"
+
             await self.db.commit()
 
-        return {"status": "success", "conversation_id": str(c_uuid), "state": "closed"}
+            # Broadcast session closed signal
+            await manager.broadcast(str(c_uuid), {
+                "type": "session_closed",
+                "conversation_id": str(c_uuid),
+                "closed_by_user_id": user_id
+            })
+
+        return {"status": "success", "conversation_id": str(c_uuid), "conversation_state": "closed", "state": "closed"}
+
+    async def submit_feedback(self, user_id: str, conversation_id: str, payload: FeedbackCreate) -> dict:
+        try:
+            c_uuid = uuid.UUID(conversation_id)
+        except (ValueError, AttributeError):
+            raise HTTPException(status_code=400, detail="Invalid conversation ID format.")
+
+        stmt = select(PeerConversation).where(PeerConversation.id == c_uuid)
+        res = await self.db.execute(stmt)
+        conv = res.scalar_one_or_none()
+        if not conv:
+            raise HTTPException(status_code=404, detail="Conversation not found.")
+
+        # Encrypt narrative feedback with AES-256-GCM
+        raw_text = payload.feedback_text or ""
+        ct, kv = encrypt_content(raw_text)
+
+        feedback = ListenerFeedback(
+            id=uuid.uuid4(),
+            conversation_id=c_uuid,
+            member_id=user_id,
+            rating=payload.rating,
+            feedback_ciphertext=ct,
+            key_version=kv,
+            post_mood_score=payload.post_mood_score,
+            sync_to_journal=payload.sync_to_journal,
+            review_state="received",
+            submitted_at=datetime.utcnow()
+        )
+        self.db.add(feedback)
+
+        # Update listener rolling rating and total conversations
+        l_stmt = select(ListenerProfile).where(ListenerProfile.id == conv.listener_id)
+        l_res = await self.db.execute(l_stmt)
+        listener = l_res.scalar_one_or_none()
+        if listener:
+            prev_total = listener.total_conversations or 0
+            prev_rating = listener.rating if listener.rating is not None else 5.0
+            new_total = prev_total + 1
+            new_rating = round(((prev_rating * prev_total) + payload.rating) / new_total, 2)
+            listener.total_conversations = new_total
+            listener.rating = new_rating
+
+        await self.db.commit()
+        await self.db.refresh(feedback)
+
+        return {
+            "status": "success",
+            "feedback_id": str(feedback.id)
+        }
 
     async def save_soap_note(self, user_id: str, conversation_id: str, payload: SoapNoteCreate) -> dict:
         c_uuid = None
@@ -377,7 +805,8 @@ class PeerService(BaseService):
                 application_state="approved",
                 eligibility_state="eligible",
                 capacity_limit=payload.capacity_limit or 3,
-                profile_languages=payload.profile_languages or ["English", "Hindi"]
+                profile_languages=payload.profile_languages or ["English", "Hindi"],
+                active_now=payload.active_now if payload.active_now is not None else False
             )
             self.db.add(profile)
         else:
@@ -385,6 +814,8 @@ class PeerService(BaseService):
                 profile.capacity_limit = payload.capacity_limit
             if payload.profile_languages is not None:
                 profile.profile_languages = payload.profile_languages
+            if payload.active_now is not None:
+                profile.active_now = payload.active_now
 
         if payload.display_name:
             m_res = await self.db.execute(select(MemberProfile).where(MemberProfile.user_id == user_id))
@@ -400,7 +831,8 @@ class PeerService(BaseService):
             "message": "Listener profile updated successfully in PostgreSQL",
             "capacity_limit": profile.capacity_limit,
             "profile_languages": profile.profile_languages,
-            "display_name": payload.display_name
+            "display_name": payload.display_name,
+            "active_now": profile.active_now
         }
 
 
