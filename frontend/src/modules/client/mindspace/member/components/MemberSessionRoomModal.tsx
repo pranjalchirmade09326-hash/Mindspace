@@ -386,7 +386,7 @@ export function MemberSessionRoomModal({
 
   return (
     <Dialog open={isModalOpen} onOpenChange={handleModalClose}>
-      <DialogContent className="max-w-4xl h-[88vh] p-0 overflow-hidden flex flex-col rounded-3xl bg-slate-950 text-white border-slate-800 shadow-2xl relative">
+      <DialogContent className="max-w-4xl h-[88vh] p-0 overflow-hidden flex flex-col rounded-3xl bg-slate-950 text-white border-slate-800 shadow-2xl">
         <DialogTitle className="sr-only">
           Peer Sanctuary Consultation Room - {listenerName}
         </DialogTitle>

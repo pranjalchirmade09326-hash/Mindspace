@@ -66,7 +66,7 @@ docker compose -f frontend\docker-compose.yml up -d --build
 docker ps
 
 # Inspect logs of specific services
-docker logs -f previsit-agent          # Multi-Agent voice engine
+docker logs -f mindspace-agents         # Multi-Agent voice engine
 docker logs -f mindspace-fastapi       # Core FastAPI engine
 docker logs -f mindspace-iam           # IAM identity provider
 
