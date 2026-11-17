@@ -17,6 +17,7 @@ import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -273,6 +274,9 @@ export function ListenerSessionRoomModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl h-[88vh] p-0 overflow-hidden flex flex-col rounded-3xl bg-slate-950 text-white border-slate-800 shadow-2xl">
+        <DialogTitle className="sr-only">
+          Peer Sanctuary Consultation Room - {memberName}
+        </DialogTitle>
         {/* ═════════════════════════════════════════════════════════════════
             STAGE 1: INCOMING CALL RINGING / ACCEPTANCE
            ═════════════════════════════════════════════════════════════════ */}

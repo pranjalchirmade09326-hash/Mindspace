@@ -4,6 +4,7 @@
  * Domain, Application, Infrastructure, and Presentation layers
  */
 
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ListenerProfile } from './domain/entities/ListenerProfile';
 import { ListenerStats } from './domain/entities/ListenerStats';
 import { GetListenerProfileUseCase } from './application/usecases/GetListenerProfileUseCase';
