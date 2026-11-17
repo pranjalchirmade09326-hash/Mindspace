@@ -135,9 +135,9 @@ Navigate to **`http://localhost:4000/en/login`** for 1-click authentication into
 |---|---|---|---|
 | **Member** | Sarah Chen | `/en/mindspace/member` | Wellbeing tools, mood tracking, AES-256 encrypted journal, peer booking, dual-language Voice Companion |
 | **Peer Listener** | Marcus Johnson | `/en/mindspace/listener` | Peer consultations, member directory, live call room, crisis escalation & conduct reporting |
-| **Listener Supervisor** | Rae Kim | `/en/mindspace/listener-supervisor` | Listener monitoring, conduct incident reports, eligibility verification |
-| **Safety Operations** | Noor Haddad | `/en/mindspace/safety-operations` | Crisis triage cases, immediate safety intervention actions, follow-up management |
-| **Platform Administrator** | Admin User | `/en/mindspace/platform-administrator` | System telemetry metrics, security audit event logs, database health monitoring |
+| **Listener Supervisor** | Rae Kim | `/en/mindspace/supervisor` (or `/listener-supervisor`) | Listener monitoring, pod roster oversight, conduct incident reports, eligibility verification |
+| **Safety Operations** | Noor Haddad | `/en/mindspace/safety` (or `/safety-operations`) | Crisis triage cases, immediate safety intervention actions, emergency hotline routing |
+| **Platform Administrator** | Admin User | `/en/mindspace/admin` (or `/platform-administrator`) | System telemetry metrics, AES-256-GCM KMS key rotation, security audit logs |
 
 ---
 
