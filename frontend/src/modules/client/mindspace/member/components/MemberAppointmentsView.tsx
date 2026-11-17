@@ -31,6 +31,7 @@ import {
   MoreVertical,
   XCircle,
   RefreshCw,
+  Building,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,7 @@ export interface TMemberSession {
   listenerName: string;
   listenerRole: string;
   channel: "video" | "voice" | "chat";
+  meetingType?: "virtual" | "in_person";
   status: "upcoming" | "completed" | "cancelled";
   topic: string;
 }
@@ -78,26 +80,29 @@ const INITIAL_SESSIONS: TMemberSession[] = [
     listenerName: "Aarav Sharma",
     listenerRole: "Verified Peer Listener (Level 2)",
     channel: "video",
+    meetingType: "virtual",
     status: "upcoming",
     topic: "Work Burnout & Boundary Restoration",
   },
   {
     id: "sess-102",
     date: new Date(Date.now() - 86400000 * 2).toISOString(),
-    timeSlot: "Nov 7, 5:00 PM - 5:45 PM",
-    listenerName: "Priya Nair",
-    listenerRole: "Somatic Breathwork Listener",
+    timeSlot: "May 11th, 5:00 PM - 5:45 PM",
+    listenerName: "Dr. Vikram Sen",
+    listenerRole: "Licensed Mental Health Counselor",
     channel: "voice",
+    meetingType: "in_person",
     status: "completed",
     topic: "Managing Evening Anxiety & Insomnia Triggers",
   },
   {
     id: "sess-103",
     date: new Date(Date.now() - 86400000 * 5).toISOString(),
-    timeSlot: "Nov 4, 11:00 AM - 11:30 AM",
+    timeSlot: "May 8th, 11:00 AM - 11:30 AM",
     listenerName: "Kabir Mehta",
     listenerRole: "Active Peer Specialist",
     channel: "chat",
+    meetingType: "virtual",
     status: "completed",
     topic: "Relocation Stress & Grounding Habits",
   },
@@ -357,12 +362,24 @@ export function MemberAppointmentsView() {
                       <div className="font-medium text-foreground">{session.timeSlot}</div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-xs capitalize font-normal gap-1">
-                        {session.channel === "video" && <Video className="size-3 text-emerald-600" />}
-                        {session.channel === "voice" && <Mic className="size-3 text-teal-600" />}
-                        {session.channel === "chat" && <MessageCircle className="size-3 text-blue-600" />}
-                        {session.channel}
-                      </Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="outline" className="text-xs capitalize font-normal gap-1 w-fit">
+                          {session.meetingType === "in_person" ? (
+                            <>
+                              <Building className="size-3 text-teal-600" />
+                              <span>In-Person</span>
+                            </>
+                          ) : (
+                            <>
+                              <Video className="size-3 text-emerald-600" />
+                              <span>Virtual Meet</span>
+                            </>
+                          )}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground uppercase font-mono">
+                          {session.channel}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge

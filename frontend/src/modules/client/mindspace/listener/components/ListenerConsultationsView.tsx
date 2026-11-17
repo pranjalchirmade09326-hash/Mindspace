@@ -44,6 +44,8 @@ import { toast } from "sonner";
 import { ListenerSessionRoomModal } from "./ListenerSessionRoomModal";
 import { MemberIntakeViewModal } from "./MemberIntakeViewModal";
 import { ListenerReviewModal } from "./ListenerReviewModal";
+import { InPersonConsultationModal } from "./InPersonConsultationModal";
+import { Stethoscope } from "lucide-react";
 
 export interface TListenerSessionItem {
   id: string;
@@ -192,6 +194,7 @@ export function ListenerConsultationsView() {
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
   const [isIntakeModalOpen, setIsIntakeModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [isInPersonModalOpen, setIsInPersonModalOpen] = useState(false);
 
   // Selections
   const [activeCallSession, setActiveCallSession] = useState<{
@@ -424,6 +427,15 @@ export function ListenerConsultationsView() {
               Accept incoming queue requests, review member intake context, join live consultation calls, and file SOAP documentation.
             </p>
           </div>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setIsInPersonModalOpen(true)}
+              className="rounded-xl text-xs bg-[#236B54] hover:bg-[#1a5240] text-white gap-2 font-semibold shadow-xs"
+            >
+              <Stethoscope className="size-4" />
+              <span>In-Person Consultation (Ambient Capture)</span>
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -649,6 +661,13 @@ export function ListenerConsultationsView() {
             );
           }
         }}
+      />
+
+      <InPersonConsultationModal
+        open={isInPersonModalOpen}
+        onOpenChange={setIsInPersonModalOpen}
+        patientName="Ananya Sharma"
+        onCompleted={() => loadSessions()}
       />
     </div>
   );

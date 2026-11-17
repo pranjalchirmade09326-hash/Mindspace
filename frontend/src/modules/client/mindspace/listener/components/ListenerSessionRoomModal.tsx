@@ -97,8 +97,8 @@ export function ListenerSessionRoomModal({
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(true);
 
-  // Right Panel Tabs: "soap" | "chat" | "guidelines"
-  const [activeTab, setActiveTab] = useState<"soap" | "chat" | "guidelines">("soap");
+  // Right Panel Tabs: "copilot" | "soap" | "chat" | "guidelines"
+  const [activeTab, setActiveTab] = useState<"copilot" | "soap" | "chat" | "guidelines">("copilot");
 
   // Structured SOAP Documentation State
   const [soapSubjective, setSoapSubjective] = useState(
@@ -791,6 +791,16 @@ export function ListenerSessionRoomModal({
                 <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-950/70 border border-slate-800 mb-3">
                   <button
                     type="button"
+                    onClick={() => setActiveTab("copilot")}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${
+                      activeTab === "copilot" ? "bg-emerald-700 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <Sparkles className="size-3 text-amber-300 animate-pulse" />
+                    AI Copilot
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setActiveTab("soap")}
                     className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                       activeTab === "soap" ? "bg-slate-800 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
@@ -814,9 +824,128 @@ export function ListenerSessionRoomModal({
                       activeTab === "guidelines" ? "bg-slate-800 text-white shadow-sm" : "text-slate-400 hover:text-slate-200"
                     }`}
                   >
-                    Boundary Guide
+                    Guide
                   </button>
                 </div>
+
+                {/* Tab 0: AI Clinical Decision Support (CDS) & Live Copilot */}
+                {activeTab === "copilot" && (
+                  <div className="flex-1 flex flex-col space-y-3 min-h-0 overflow-y-auto pr-1 text-xs">
+                    <div className="flex items-center justify-between pb-1 border-b border-slate-800 text-xs">
+                      <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                        <Sparkles className="size-3.5 text-amber-400" />
+                        Clinical Decision Support System
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="size-2 rounded-full bg-emerald-400 animate-ping" />
+                        <span className="text-[10px] text-emerald-400 font-medium">Ambient AI Active</span>
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-900/60 text-slate-300 text-[11px] leading-relaxed">
+                      <strong className="text-emerald-300 block mb-0.5">Real-Time Clinical Decision Support</strong>
+                      The AI is analyzing the conversation in background and suggesting targeted questions to ask the patient.
+                    </div>
+
+                    {/* Suggested Questions List */}
+                    <div className="space-y-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                        Suggested Questions to Ask Patient
+                      </span>
+
+                      {[
+                        {
+                          id: "q-1",
+                          question: "Can you describe when the tension headaches and anxiety first escalated?",
+                          rationale: "Establish symptom onset & temporal timeline",
+                          context: "Subjective History",
+                        },
+                        {
+                          id: "q-2",
+                          question: "Have you noticed any physical triggers, palpitations, or disrupted sleep patterns?",
+                          rationale: "Screen for somatic autonomic arousal & insomnia",
+                          context: "Clinical Observation",
+                        },
+                        {
+                          id: "q-3",
+                          question: "Have you tried any over-the-counter medications like Acetaminophen or relaxation exercises?",
+                          rationale: "Review medication history & prior coping strategies",
+                          context: "Medication & Care Plan",
+                        },
+                        {
+                          id: "q-4",
+                          question: "How are these symptoms impacting your work hours and concentration during the day?",
+                          rationale: "Assess functional impairment level",
+                          context: "Assessment Context",
+                        },
+                      ].map((item) => (
+                        <div
+                          key={item.id}
+                          className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 hover:border-emerald-600/50 transition-all space-y-2"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="font-medium text-slate-200 text-xs leading-snug">
+                              &ldquo;{item.question}&rdquo;
+                            </p>
+                            <Badge variant="outline" className="text-[9px] border-slate-700 text-slate-400 shrink-0">
+                              {item.context}
+                            </Badge>
+                          </div>
+                          <p className="text-[10px] text-slate-400 italic">
+                            CDS Rationale: {item.rationale}
+                          </p>
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMessages((prev) => [
+                                  ...prev,
+                                  {
+                                    id: `msg-${Date.now()}`,
+                                    sender: "listener",
+                                    senderName: "You (Doctor)",
+                                    text: item.question,
+                                    time: "Just now",
+                                  },
+                                ]);
+                                toast.success("Question prompted to patient chat!");
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-[11px] font-semibold transition-all"
+                            >
+                              Ask Patient
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSoapSubjective((prev) => `${prev}\n- Inquired: "${item.question}"`);
+                                toast.info("Added to SOAP Subjective notes!");
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] transition-all"
+                            >
+                              Add to SOAP
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Ambient AI Transcription Context */}
+                    <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-teal-400 text-[11px]">Ambient AI Voice Capture</span>
+                        <Badge variant="outline" className="text-[9px] border-teal-800 text-teal-300">
+                          Automated Transcription
+                        </Badge>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed font-mono">
+                        [01:12] Patient: &ldquo;The work pressure has been continuous, causing frequent headaches.&rdquo;
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        Voice capture is being transcribed automatically in background for post-consultation SOAP note generation.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Tab 1: Structured SOAP Notes */}
                 {activeTab === "soap" && (
